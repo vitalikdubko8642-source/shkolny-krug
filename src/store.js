@@ -2,7 +2,8 @@
 // На сервер НИЧЕГО не уходит — это прототип, так требует ТЗ.
 import { useEffect, useState } from 'react'
 
-const KEY = 'shkolny-krug-v1'
+// Номер версии в ключе: когда меняется устройство данных, старые сохранения не мешают новым
+const KEY = 'shkolny-krug-v3'
 
 export function load() {
   try { return JSON.parse(localStorage.getItem(KEY)) || {} } catch { return {} }

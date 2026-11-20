@@ -1,11 +1,18 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { chats, folders, people } from '../data/demo.js'
+import Avatar from '../components/Avatar.jsx'
+import Sheet from '../components/Sheet.jsx'
+import { folders, people } from '../data/demo.js'
+import { INTERESTS } from './Register.jsx'
+import { findSimilar, checkNew } from '../logic/moderation.js'
 
-// Список чатов как в Telegram: папки сверху, строки чатов, кнопка «создать».
-export default function ChatList({ user, messages, unread, onOpen }) {
+const GROUP_COLORS = ['#F2994A', '#9B51E0', '#27AE60', '#EB5757', '#2F80ED', '#56CCF2', '#BB6BD9']
+
+// Список чатов как в Telegram: плашка срочного, папки, строки чатов, кнопка «создать группу».
+export default function ChatList({ user, chats, messages, unread, alerts, onOpen, onCreateGroup, onGoEvents }) {
   const [folder, setFolder] = useState('all')
   const [q, setQ] = useState('')
+  const [creating, setCreating] = useState(false)
 
   if (user?.role === 'teacher') {
     return (
@@ -15,22 +22,30 @@ export default function ChatList({ user, messages, unread, onOpen }) {
           <div className="empty">
             <Icon name="shield" />
             <b>Чаты — пространство учеников</b>
-            <span>Учителя не видят переписку. Во вкладке «События» вы можете создать мероприятие для учеников.</span>
+            <span>Учителя не видят переписку — так ребята общаются свободно. Во вкладке «События» вы можете создать мероприятие для учеников, а в «Идеях» — посмотреть, что они предлагают.</span>
           </div>
         </div>
       </>
     )
   }
 
+  const alert = alerts.find((a) => !a.resolved)
   const list = chats
     .filter((c) => folder === 'all' || c.folder === folder)
     .filter((c) => c.title.toLowerCase().includes(q.toLowerCase()))
+    .map((c) => ({ c, msgs: messages[c.id] || [] }))
+    .sort((a, b) => (b.c.pinned ? 1 : 0) - (a.c.pinned ? 1 : 0) || (b.msgs.at(-1)?.time || '').localeCompare(a.msgs.at(-1)?.time || ''))
 
   return (
     <>
       <div className="topbar">
         <h1>Школьный круг</h1>
       </div>
+      {alert && (
+        <button className="alert-banner" onClick={onGoEvents}>
+          <Icon name="bolt" /><span><b>Срочно:</b> {alert.text} · {alert.place}</span><Icon name="chevron" />
+        </button>
+      )}
       <div className="search">
         <Icon name="search" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск" />
@@ -40,18 +55,21 @@ export default function ChatList({ user, messages, unread, onOpen }) {
           <button key={f.id} className={folder === f.id ? 'on' : ''} onClick={() => setFolder(f.id)}>{f.title}</button>
         ))}
       </div>
-      <div className="scroll">
-        {list.map((c) => {
-          const msgs = messages[c.id] || []
+      <div className="scroll" style={{ paddingBottom: 80 }}>
+        {list.length === 0 && folder === 'dm' && (
+          <div className="empty"><Icon name="mail" /><b>Личных чатов пока нет</b><span>Найди ребят во вкладке «Друзья» и отправь запрос. Чат появится, когда его примут.</span></div>
+        )}
+        {list.map(({ c, msgs }) => {
           const last = msgs[msgs.length - 1]
-          const who = last && (last.own ? 'Вы' : c.type === 'channel' ? null : people[last.from]?.nick)
-          const text = last ? (last.meet ? 'Встреча: ' + last.meet.place + ', ' + last.meet.time : last.text) : ''
+          const who = last && (last.own ? 'Вы' : c.type === 'channel' || c.type === 'dm' ? null : people[last.from]?.nick)
+          const text = last ? (last.hidden ? 'Сообщение скрыто' : last.meet ? `📍 Встреча: ${last.meet.place}, ${last.meet.time}` : last.game ? `🎮 ${last.game.title}` : last.text) : (c.type === 'dm' ? 'Напиши первым 👋' : 'Пока тихо')
+          const p = c.type === 'dm' ? people[c.nick] : null
           return (
             <button key={c.id} className="chat-row" onClick={() => onOpen(c.id)}>
-              <div className="avatar" style={{ background: c.color }}>{c.letter}</div>
+              {p ? <Avatar p={p} /> : <Avatar color={c.color} text={c.letter} />}
               <div className="body">
                 <div className="row1">
-                  <span className="title">{c.title}</span>
+                  <span className="title">{c.title}{c.own && <span className="own-tag">моя</span>}</span>
                   <span className="time">{last?.time}</span>
                 </div>
                 <div className="row2">
@@ -63,7 +81,54 @@ export default function ChatList({ user, messages, unread, onOpen }) {
           )
         })}
       </div>
-      <button className="fab" aria-label="Создать группу"><Icon name="pencil" /></button>
+      <button className="fab" aria-label="Создать группу" onClick={() => setCreating(true)}><Icon name="pencil" /></button>
+
+      {creating && (
+        <GroupForm chats={chats} onClose={() => setCreating(false)}
+          onOpen={(id) => { setCreating(false); onOpen(id) }}
+          onCreate={(g) => { setCreating(false); onCreateGroup({ ...g, color: GROUP_COLORS[g.title.length % GROUP_COLORS.length] }) }} />
+      )}
     </>
+  )
+}
+
+// Новая группа. ИИ-помощник проверяет, нет ли уже похожей — чтобы не было «миллиарда групп».
+function GroupForm({ chats, onClose, onCreate, onOpen }) {
+  const [f, setF] = useState({ title: '', about: '', interest: null })
+  const [check, setCheck] = useState(null)
+  const set = (k, v) => { setF({ ...f, [k]: v }); setCheck(null) }
+
+  const run = () => {
+    const groups = chats.filter((c) => c.type === 'group')
+    const similar =
+      findSimilar(f.title, `${f.title} ${f.about}`, groups.map((g) => ({ id: g.id, title: g.title, text: `${g.title} ${g.about || ''}` }))) ||
+      (f.interest && groups.find((g) => g.interest === f.interest) && { ...groups.find((g) => g.interest === f.interest), byInterest: true })
+    const notes = checkNew(f.title, f.about)
+    if (!similar && !notes.length) return onCreate(f)
+    setCheck({ similar, notes })
+  }
+
+  return (
+    <Sheet onClose={onClose} title="Новая группа" tall>
+      <input className="sheet-input" value={f.title} onChange={(e) => set('title', e.target.value)} placeholder="Название: Шахматный клуб" maxLength={30} />
+      <input className="sheet-input" value={f.about} onChange={(e) => set('about', e.target.value)} placeholder="О чём группа?" maxLength={100} />
+      <p>Тема (по желанию)</p>
+      <div className="chips">{INTERESTS.map((i) => <button key={i} className={'chip' + (f.interest === i ? ' on' : '')} onClick={() => set('interest', f.interest === i ? null : i)}>{i}</button>)}</div>
+      {check && (
+        <div className="ai-box">
+          <b>🤖 ИИ-помощник</b>
+          {check.notes.map((n) => <span key={n}>• {n}</span>)}
+          {check.similar && (
+            <>
+              <span>Похожая группа уже есть: «{check.similar.title}»{check.similar.byInterest ? ` — тоже про «${f.interest}»` : ''}. Может, лучше присоединиться к ней? Так людей будет больше, а групп — меньше.</span>
+              <button className="btn" onClick={() => onOpen(check.similar.id)}>Открыть «{check.similar.title}»</button>
+              {!check.notes.length && <button className="btn ghost" onClick={() => onCreate(f)}>У меня другое — создать</button>}
+            </>
+          )}
+          <small>ИИ только подсказывает. Решение за тобой, а спорные случаи смотрит модератор.</small>
+        </div>
+      )}
+      {!check?.similar && <button className="btn" disabled={f.title.trim().length < 4 || check?.notes.length > 0} onClick={run}>Создать</button>}
+    </Sheet>
   )
 }

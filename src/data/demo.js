@@ -1,30 +1,45 @@
-// ВСЕ люди и сообщения здесь ВЫДУМАНЫ (так требует ТЗ).
+// ВСЕ люди, события и сообщения здесь ВЫДУМАНЫ (так требует ТЗ).
 // Это «демо-база»: при первом запуске приложение копирует её в память телефона.
 
+// Название МАФа пока рабочее — когда придумаем объект, поменяем здесь одно слово
+export const MAF = 'навес во дворе'
+export const MAF_PLACE = 'У навеса во дворе'
+
+// Выдуманные ученики. frame / badge / nickColor — оформление, купленное за монеты
 export const people = {
-  pixel_cat:   { nick: 'pixel_cat',   color: '#F2994A', cls: '9Б' },
-  moon_rider:  { nick: 'moon_rider',  color: '#9B51E0', cls: '9В' },
-  zhenya_gol:  { nick: 'zhenya_gol',  color: '#27AE60', cls: '9Б' },
-  lisa_draws:  { nick: 'lisa_draws',  color: '#EB5757', cls: '8А' },
-  max_ping:    { nick: 'max_ping',    color: '#2F80ED', cls: '10А' },
-  sova_tima:   { nick: 'sova_tima',   color: '#56CCF2', cls: '9Б' },
-  kira_bloom:  { nick: 'kira_bloom',  color: '#BB6BD9', cls: '7В' },
-  school:      { nick: 'Школа «Окла»', color: '#3390EC', cls: '' },
+  pixel_cat:  { nick: 'pixel_cat',  color: '#F2994A', emoji: '🐱', cls: '9Б', interests: ['Музыка', 'Игры', 'Аниме'], status: '🎸 ищу группу', bio: 'Играю на гитаре третий год, хочу собрать школьную группу', badge: '🎸' },
+  moon_rider: { nick: 'moon_rider', color: '#9B51E0', cls: '9В', interests: ['Музыка', 'Футбол', 'Кино'], bio: 'Капитан 9В по футболу. Могу подобрать аккорды к любой песне', frame: 'gold' },
+  zhenya_gol: { nick: 'zhenya_gol', color: '#27AE60', emoji: '⚽', cls: '9Б', interests: ['Футбол', 'Баскетбол', 'Игры'], status: '⚽ кто в футбол?', bio: 'Если ищешь, с кем погонять мяч, — пиши' },
+  lisa_draws: { nick: 'lisa_draws', color: '#EB5757', emoji: '🎨', cls: '8А', interests: ['Рисование', 'Аниме', 'Книги'], bio: 'Рисую скетчи и иногда стены (с разрешения 😅)', nickColor: '#E0557F' },
+  max_ping:   { nick: 'max_ping',   color: '#2F80ED', emoji: '👾', cls: '10А', interests: ['Программирование', 'Игры', 'Шахматы'], status: '💻 пишу бота для школы', bio: 'Олимпиадник по информатике, помогу с кодом', badge: '👑' },
+  sova_tima:  { nick: 'sova_tima',  color: '#56CCF2', emoji: '🦉', cls: '9Б', interests: ['Книги', 'Шахматы', 'Программирование'], bio: 'Читаю фантастику, решаю задачки' },
+  kira_bloom: { nick: 'kira_bloom', color: '#BB6BD9', emoji: '🦄', cls: '9Б', interests: ['Музыка', 'Танцы', 'Рисование'], status: '🆕 новенькая', bio: 'Переехала в «Оклу» этим летом, пока всех путаю 🙈' },
+  dan_kot:    { nick: 'dan_kot',    color: '#6FCF97', cls: '7В', interests: ['Волонтёрство', 'Кино', 'Футбол'], bio: 'Хожу в приют для животных по субботам' },
+  school:     { nick: 'Школа «Окла»', color: '#3390EC', cls: '' },
+}
+
+// Учителя (тоже выдуманные) — создают мероприятия, в чаты не заходят
+export const teachers = {
+  t_sport: 'Игорь Петрович, физкультура',
+  t_music: 'Анна Сергеевна, музыка',
+  t_class: 'Ольга Викторовна, классный руководитель 9Б',
+  t_admin: 'Администрация школы',
 }
 
 // type: group — общая группа, channel — новости школы (писать может только школа)
 export const chats = [
-  { id: 'news',   title: 'Новости школы',   type: 'channel', color: '#3390EC', letter: 'Ш', members: 612, folder: 'school' },
-  { id: 'class',  title: '9Б — наш класс',  type: 'group',   color: '#27AE60', letter: '9Б', members: 27, folder: 'class' },
-  { id: 'par9',   title: 'Параллель 9-х',   type: 'group',   color: '#9B51E0', letter: '9', members: 84, folder: 'class' },
-  { id: 'guitar', title: 'Гитара и музыка', type: 'group',   color: '#F2994A', letter: 'Г', members: 48, folder: 'interests' },
-  { id: 'foot',   title: 'Футбол во дворе', type: 'group',   color: '#2F80ED', letter: 'Ф', members: 61, folder: 'interests' },
-  { id: 'art',    title: 'Рисуем и делаем', type: 'group',   color: '#EB5757', letter: 'Р', members: 33, folder: 'interests' },
-  { id: 'new',    title: 'Новенькие',       type: 'group',   color: '#56CCF2', letter: 'Н', members: 19, folder: 'school' },
+  { id: 'news',   title: 'Новости школы',   type: 'channel', color: '#3390EC', letter: 'Ш', members: 612, folder: 'school', pinned: true, about: 'Официальные объявления школы. Писать может только администрация.' },
+  { id: 'class',  title: '9Б — наш класс',  type: 'group',   color: '#27AE60', letter: '9Б', members: 27, folder: 'class', about: 'Чат класса 9Б. Учителей здесь нет.' },
+  { id: 'par9',   title: 'Параллель 9-х',   type: 'group',   color: '#9B51E0', letter: '9', members: 84, folder: 'class', about: 'Все 9-е классы: 9А, 9Б, 9В.' },
+  { id: 'guitar', title: 'Гитара и музыка', type: 'group',   color: '#F2994A', letter: 'Г', members: 48, folder: 'interests', interest: 'Музыка', about: 'Джемим, делимся аккордами, собираем школьную группу.' },
+  { id: 'foot',   title: 'Футбол во дворе', type: 'group',   color: '#2F80ED', letter: 'Ф', members: 61, folder: 'interests', interest: 'Футбол', about: 'Собираем команды на поле за школой.' },
+  { id: 'art',    title: 'Рисуем и делаем', type: 'group',   color: '#EB5757', letter: 'Р', members: 33, folder: 'interests', interest: 'Рисование', about: 'Рисунки, поделки, оформление школы.' },
+  { id: 'new',    title: 'Новенькие',       type: 'group',   color: '#56CCF2', letter: 'Н', members: 19, folder: 'school', about: 'Для тех, кто только пришёл в школу. Спрашивай что угодно — подскажем.' },
 ]
 
 export const folders = [
   { id: 'all', title: 'Все' },
+  { id: 'dm', title: 'Личные' },
   { id: 'class', title: 'Класс' },
   { id: 'interests', title: 'Интересы' },
   { id: 'school', title: 'Школа' },
@@ -46,35 +61,99 @@ export const messages = {
   par9: [
     m('moon_rider', 'ребят, кто идёт на футбол 9Б против 9В? нужны болельщики', '12:05'),
     m('max_ping', 'я приду, возьму барабан 🥁', '12:07'),
+    m('max_ping', '', '12:10', { game: { id: 'g0', title: 'Быстрый счёт', by: 'max_ping', players: 6 } }),
   ],
   guitar: [
     m('moon_rider', 'нашёл аккорды к той песне, кидаю в группу', '13:20'),
     m('pixel_cat', 'кто сегодня джемит после уроков?', '14:02'),
     m('lisa_draws', 'я в деле, возьму укулеле', '14:03'),
-    m('pixel_cat', '', '14:05', { meet: { place: 'У навеса во дворе', time: '15:00', going: 4 } }),
+    m('pixel_cat', '', '14:05', { meet: { place: MAF_PLACE, time: '15:00', day: 'Сегодня', going: 4 } }),
   ],
   foot: [
     m('zhenya_gol', 'в субботу играем 5 на 5, нужно ещё двое', '11:15'),
     m('max_ping', '+1, но я на воротах не стою', '11:20'),
   ],
   art: [
-    m('lisa_draws', 'предлагаю разрисовать стену у теплиц, кто за?', '10:02'),
-    m('kira_bloom', 'я за! можно спросить у завуча', '10:15'),
+    m('lisa_draws', 'предлагаю разрисовать стену у теплиц, кто за? закинула идею во вкладку «Идеи»', '10:02'),
+    m('kira_bloom', 'я за! поддержала', '10:15'),
   ],
   new: [
     m('kira_bloom', 'всем привет, я тоже новенькая, ещё не нашла кабинет химии 😅', '09:12'),
     m('sova_tima', 'он на 3 этаже, справа от лестницы', '09:14'),
+    m('sova_tima', 'кстати в профиле есть «Гид по школе», там всё по этажам', '09:15'),
   ],
 }
 
 // Ответы «живых» ребят (ботов), чтобы прототип не выглядел пустым
 export const replies = [
-  'ахах, согласен',
-  'норм идея 👍',
-  'я тоже за',
-  'а во сколько?',
-  'ок, буду',
-  'ну наконец-то кто-то предложил',
-  'звучит круто',
-  'кстати да',
+  'ахах, согласен', 'норм идея 👍', 'я тоже за', 'а во сколько?', 'ок, буду',
+  'ну наконец-то кто-то предложил', 'звучит круто', 'кстати да',
+]
+export const dmReplies = [
+  'привет! 👋', 'о, круто, давай', 'да, я тоже это люблю', 'можем встретиться у навеса после уроков',
+  'ахах точно', 'кинь потом в общий чат', 'супер, договорились',
+]
+
+// Мероприятия — их создают учителя и администрация
+export const events = [
+  { id: 'e1', title: 'Футбол: 9Б против 9В', kind: 'Спорт', day: 25, month: 'ноя', weekday: 'ср', time: '15:30', place: 'Поле для мини-футбола', by: 't_sport',
+    desc: 'Товарищеский матч параллели. Нужны болельщики — приходите поддержать свой класс!', spectators: 23, participants: 14, maxParticipants: 14, allowJoin: true },
+  { id: 'e2', title: 'Школьный квартирник', kind: 'Культура', day: 28, month: 'ноя', weekday: 'сб', time: '17:00', place: 'Актовый зал', by: 't_music',
+    desc: 'Выступают ученики: гитара, вокал, стихи. Можно записаться выступить — нужно 5 минут и желание.', spectators: 41, participants: 6, maxParticipants: 12, allowJoin: true },
+  { id: 'e3', title: 'Субботник во дворе', kind: 'Двор', day: 30, month: 'ноя', weekday: 'пн', time: '14:00', place: 'Школьный двор, сбор у навеса', by: 't_class',
+    desc: 'Убираем листья и готовим теплицы к зиме. Перчатки и чай — от школы.', spectators: 0, participants: 18, maxParticipants: 40, allowJoin: true, onlyJoin: true },
+  { id: 'e4', title: 'День открытых дверей кружков', kind: 'Учёба', day: 3, month: 'дек', weekday: 'чт', time: '16:00', place: 'Рекреация 2 этажа', by: 't_admin',
+    desc: 'Робототехника, театр, шахматы, 3D-моделирование — руководители расскажут про свои кружки.', spectators: 57, participants: 0, allowJoin: false },
+]
+
+// Срочные сообщения «для всех» — быстро сообщить о проблеме в школе
+export const alerts = [
+  { id: 'a1', text: 'Не работает кулер с водой у спортзала', place: '1 этаж', from: 'dan_kot', time: '11:40', confirms: 6 },
+]
+export const ALERT_PRESETS = ['Не работает туалет', 'Сломан замок шкафчика', 'Нет воды в кулере', 'Отменили урок', 'Скользко на крыльце']
+export const PLACES = ['1 этаж', '2 этаж', '3 этаж', '4 этаж', 'Столовая', 'Спортзал', 'Двор']
+
+// Места для встреч
+export const MEET_PLACES = [MAF_PLACE, 'У главного входа', 'У велопарковки', 'В библиотеке', 'В столовой']
+
+// Инициативы. Набрала goal голосов — уходит администрации
+export const ideas = [
+  { id: 'i1', title: 'Разрисовать стену у теплиц', tag: 'Двор', author: 'lisa_draws', time: 'вчера',
+    desc: 'Серую стену у теплиц можно расписать: цветы, овощи, школьный герб. Нужны 5–6 художников и разрешение школы.', supports: 24, goal: 30, joined: 5, needPeople: true },
+  { id: 'i2', title: 'Зарядки для телефонов в библиотеке', tag: 'Школа', author: 'max_ping', time: '2 дня назад',
+    desc: 'Поставить у столов в библиотеке розетки или станцию для зарядки. Многие сидят там после уроков.', supports: 31, goal: 30, joined: 0, status: 'sent', answer: 'Администрация: спасибо! Заказали зарядную станцию на 10 телефонов, поставим в декабре.' },
+  { id: 'i3', title: 'Турнир по шахматам между классами', tag: 'Досуг', author: 'sova_tima', time: '3 дня назад',
+    desc: 'Раз в месяц по пятницам, в библиотеке. Победитель получает кубок класса до следующего турнира.', supports: 12, goal: 30, joined: 9, needPeople: true },
+  { id: 'i4', title: 'Сбор корма для приюта', tag: 'Добро', author: 'dan_kot', time: 'неделю назад',
+    desc: 'Поставить коробку у входа на две недели, а потом вместе отвезти корм в приют.', supports: 40, goal: 30, joined: 11, needPeople: true, status: 'done', answer: 'Готово: собрали 37 кг корма и отвезли в приют. Спасибо всем, кто участвовал!' },
+]
+export const IDEA_TAGS = ['Школа', 'Двор', 'Досуг', 'Добро', 'Учёба']
+
+// Входящий запрос на переписку (для демонстрации)
+export const incomingRequests = [
+  { nick: 'kira_bloom', text: 'привет! видела, ты тоже любишь музыку. я новенькая в 9Б 🙂', time: '12:30' },
+]
+
+// Гид по школе для новенького (план условный — школа ещё строится)
+export const tour = [
+  { title: '1 этаж', items: ['Главный вход и пост охраны', 'Гардероб — сразу направо', 'Столовая — в конце коридора', 'Спортзал и раздевалки', 'Медпункт — рядом со столовой'] },
+  { title: '2 этаж', items: ['Начальные классы', 'Библиотека с зоной для чтения', 'Кабинет психолога'] },
+  { title: '3 этаж', items: ['Кабинеты 5–11 классов', 'Химия и физика — справа от лестницы', 'Информатика — в левом крыле'] },
+  { title: 'Двор', items: [`${MAF[0].toUpperCase() + MAF.slice(1)} — место встречи старшеклассников, там висит QR-код приложения`, 'Стадион и поле для мини-футбола', 'Теплицы и огород', 'Велопарковка у входа'] },
+]
+
+// Магазин оформления: монеты зарабатываются в мини-играх
+export const shop = [
+  { id: 'frame:gold', type: 'frame', value: 'gold', title: 'Золотая рамка', price: 40 },
+  { id: 'frame:rainbow', type: 'frame', value: 'rainbow', title: 'Радужная рамка', price: 60 },
+  { id: 'frame:ice', type: 'frame', value: 'ice', title: 'Ледяная рамка', price: 30 },
+  { id: 'badge:🔥', type: 'badge', value: '🔥', title: 'Значок «Огонь»', price: 20 },
+  { id: 'badge:👑', type: 'badge', value: '👑', title: 'Значок «Корона»', price: 50 },
+  { id: 'badge:⚡', type: 'badge', value: '⚡', title: 'Значок «Молния»', price: 20 },
+  { id: 'badge:🧠', type: 'badge', value: '🧠', title: 'Значок «Мозг»', price: 30 },
+  { id: 'nick:#E0557F', type: 'nickColor', value: '#E0557F', title: 'Розовый ник', price: 25 },
+  { id: 'nick:#27AE60', type: 'nickColor', value: '#27AE60', title: 'Зелёный ник', price: 25 },
+  { id: 'nick:#F2994A', type: 'nickColor', value: '#F2994A', title: 'Оранжевый ник', price: 25 },
+  { id: 'bg:aurora', type: 'cardBg', value: 'aurora', title: 'Фон карточки «Сияние»', price: 45 },
+  { id: 'bg:sunset', type: 'cardBg', value: 'sunset', title: 'Фон карточки «Закат»', price: 45 },
 ]

@@ -2,8 +2,10 @@
 // главная страница со списком разделов, каждый раздел открывается отдельным экраном.
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import Avatar from '../components/Avatar.jsx'
+import Avatar, { Nick } from '../components/Avatar.jsx'
+import ProfileCard from '../components/ProfileCard.jsx'
 import { INTERESTS } from './Register.jsx'
+import { shop } from '../data/demo.js'
 
 export const AVATAR_COLORS = ['#F2994A', '#EB5757', '#E0557F', '#BB6BD9', '#9B51E0', '#2F80ED', '#3390EC', '#56CCF2', '#27AE60', '#6FCF97', '#828282', '#333333']
 const EMOJIS = ['😎', '🦊', '🐱', '🐼', '🐸', '🦄', '🐙', '👾', '🎸', '⚽', '🏀', '🎨', '📚', '🎮', '🚀', '⭐']
@@ -51,57 +53,42 @@ function Page({ title, onBack, children }) {
   )
 }
 
-// Карточка «как тебя видят другие» — её же видят ребята, когда нажимают на твой ник
-export function ProfileCard({ user, settings }) {
-  return (
-    <div className="card-view">
-      <div className="top">
-        <Avatar color={user.color} text={user.nick[0].toUpperCase()} emoji={user.emoji} />
-        <div>
-          <b>{user.nick}</b>
-          <span>{user.role === 'teacher' ? 'учитель' : settings.showClass ? `ученик, ${user.cls}` : 'ученик'}{settings.showOnline && ' · в сети'}</span>
-        </div>
-      </div>
-      {user.status && <div className="status">{user.status}</div>}
-      {user.bio && <div className="bio">{user.bio}</div>}
-      {settings.showInterests && user.interests?.length > 0 && (
-        <div className="chips">{user.interests.map((i) => <span key={i} className="chip">{i}</span>)}</div>
-      )}
-    </div>
-  )
-}
-
 // ---------- главная страница профиля ----------
-export default function Profile({ user, settings, page, onPage, onUser, onSettings, onReset }) {
-  if (page === 'me') return <MePage user={user} settings={settings} onUser={onUser} onBack={() => onPage(null)} />
-  if (page === 'look') return <LookPage settings={settings} onSettings={onSettings} onBack={() => onPage(null)} />
-  if (page === 'privacy') return <PrivacyPage settings={settings} onSettings={onSettings} onBack={() => onPage(null)} />
-  if (page === 'notif') return <NotifPage settings={settings} onSettings={onSettings} onBack={() => onPage(null)} />
-  if (page === 'about') return <AboutPage onBack={() => onPage(null)} onReset={onReset} />
+export default function Profile({ user, settings, page, onPage, onUser, onSettings, onReset, onRole, onTour, blocked, onUnblock }) {
+  const back = () => onPage(null)
+  if (page === 'me') return <MePage user={user} settings={settings} onUser={onUser} onBack={back} />
+  if (page === 'look') return <LookPage settings={settings} onSettings={onSettings} onBack={back} />
+  if (page === 'privacy') return <PrivacyPage user={user} settings={settings} onSettings={onSettings} blocked={blocked} onUnblock={onUnblock} onBack={back} />
+  if (page === 'notif') return <NotifPage settings={settings} onSettings={onSettings} onBack={back} />
+  if (page === 'shop') return <ShopPage user={user} onUser={onUser} onBack={back} />
+  if (page === 'about') return <AboutPage user={user} onBack={back} onReset={onReset} onRole={onRole} />
 
   const theme = THEMES.find((t) => t.id === settings.theme)?.title
   const dm = DM.find(([id]) => id === settings.dmFrom)?.[1]
+  const isTeacher = user.role === 'teacher'
   return (
     <>
-      <div className="topbar"><h1>Профиль</h1></div>
+      <div className="topbar"><h1>Профиль</h1>{!isTeacher && <button className="coins" onClick={() => onPage('shop')}>{user.coins ?? 0} 🪙</button>}</div>
       <div className="scroll">
         <div className="p-head">
-          <Avatar color={user.color} text={user.nick[0].toUpperCase()} emoji={user.emoji} />
-          <b>{user.nick}</b>
-          <span className="st">{user.status || (user.role === 'teacher' ? 'Учитель' : `Ученик, ${user.cls}`)}</span>
+          <Avatar p={user} />
+          <b><Nick p={user} /></b>
+          <span className="st">{user.status || (isTeacher ? 'Учитель' : `Ученик, ${user.cls}`)}</span>
           <button className="link-btn" onClick={() => onPage('me')}>Изменить профиль</button>
         </div>
 
         <div className="group">
           <Row icon="user" color="#F2994A" title="Мой профиль" sub="Аватар, ник, статус, о себе, интересы" onClick={() => onPage('me')} />
-          <Row icon="palette" color="#9B51E0" title="Оформление" sub={`Тема «${theme}», обои, размер текста`} onClick={() => onPage('look')} />
+          {!isTeacher && <Row icon="coin" color="#E2A400" title="Монеты и оформление" sub="Рамки, значки и цвет ника за победы в мини-играх" value={`${user.coins ?? 0} 🪙`} onClick={() => onPage('shop')} />}
+          <Row icon="palette" color="#9B51E0" title="Оформление приложения" sub={`Тема «${theme}», цвет, обои, размер текста`} onClick={() => onPage('look')} />
         </div>
         <div className="group">
-          <Row icon="lock" color="#27AE60" title="Конфиденциальность" sub={`Пишут лично: ${dm.toLowerCase()}`} onClick={() => onPage('privacy')} />
+          <Row icon="lock" color="#27AE60" title="Конфиденциальность" sub={isTeacher ? 'Что видят ученики' : `Пишут лично: ${dm.toLowerCase()}`} onClick={() => onPage('privacy')} />
           <Row icon="bell" color="#EB5757" title="Уведомления" sub="Чаты, события, новости школы" onClick={() => onPage('notif')} />
         </div>
         <div className="group">
-          <Row icon="info" color="#828282" title="О приложении" sub="Правила общения, модерация, сброс" onClick={() => onPage('about')} />
+          {!isTeacher && <Row icon="map" color="#56CCF2" title="Гид по школе" sub="Что где находится и с кем познакомиться" onClick={onTour} />}
+          <Row icon="info" color="#828282" title="О приложении" sub="Правила, модерация, режим демонстрации" onClick={() => onPage('about')} />
         </div>
       </div>
     </>
@@ -174,7 +161,7 @@ function MePage({ user, settings, onUser, onBack }) {
 // ---------- Оформление ----------
 function LookPage({ settings, onSettings, onBack }) {
   return (
-    <Page title="Оформление" onBack={onBack}>
+    <Page title="Оформление приложения" onBack={onBack}>
       <div className="mini-chat">
         <div className="msg"><div className="from" style={{ color: '#F2994A' }}>pixel_cat</div><div className="text">так будут выглядеть сообщения</div></div>
         <div className="own-row own"><div className="msg"><div className="text">выглядит круто 🔥</div><div className="meta"><span className="tm">14:05 ✓✓</span></div></div></div>
@@ -225,10 +212,21 @@ function LookPage({ settings, onSettings, onBack }) {
 }
 
 // ---------- Конфиденциальность ----------
-function PrivacyPage({ settings, onSettings, onBack }) {
+function PrivacyPage({ user, settings, onSettings, blocked = [], onUnblock, onBack }) {
   const flip = (k) => () => onSettings({ [k]: !settings[k] })
   return (
     <Page title="Конфиденциальность" onBack={onBack}>
+      {user.young && (
+        <>
+          <p className="group-title">Родительский контроль · 1–4 класс</p>
+          <div className="group pad" style={{ fontSize: 14.5, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span>✓ Родитель знает, что ты зарегистрирован в «Школьном круге».</span>
+            <span>✓ Раз в неделю ИИ-помощник присылает ему короткую сводку: в каких группах ты общаешься и были ли жалобы.</span>
+            <span>✗ Переписку родитель не читает.</span>
+            <span>✓ Если кто-то пожаловался на сообщение, адресованное тебе, родитель получит уведомление.</span>
+          </div>
+        </>
+      )}
       <p className="group-title">Кто может прислать запрос в личку</p>
       <div className="group">
         {DM.map(([id, title]) => (
@@ -244,6 +242,60 @@ function PrivacyPage({ settings, onSettings, onBack }) {
         <Row title="Когда я в сети" onClick={flip('showOnline')} right={<Toggle on={settings.showOnline} />} />
       </div>
       <p className="group-note">ФИО и номер телефона не видит никто из ребят — только администратор школы, чтобы проверить, что ты из нашей школы.</p>
+
+      <p className="group-title">Заблокированные</p>
+      <div className="group">
+        {blocked.length === 0 && <div className="pad" style={{ color: 'var(--text-2)', fontSize: 14.5 }}>Никого. Заблокировать можно в личном чате через «⋯».</div>}
+        {blocked.map((nick) => (
+          <div key={nick} className="row"><span className="rt">{nick}</span><button className="mini-btn" onClick={() => onUnblock(nick)}>Разблокировать</button></div>
+        ))}
+      </div>
+    </Page>
+  )
+}
+
+// ---------- Монеты и магазин оформления ----------
+const SHOP_GROUPS = [['frame', 'Рамки аватара'], ['badge', 'Значок рядом с ником'], ['nickColor', 'Цвет ника'], ['cardBg', 'Фон карточки профиля']]
+
+function ShopPage({ user, onUser, onBack }) {
+  const owned = user.owned || []
+  const coins = user.coins ?? 0
+  const buy = (it) => { if (coins >= it.price) onUser({ coins: coins - it.price, owned: [...owned, it.id], [it.type]: it.value }) }
+  const toggle = (it) => onUser({ [it.type]: user[it.type] === it.value ? null : it.value })
+  const preview = (it) => {
+    if (it.type === 'frame') return <Avatar p={{ ...user, frame: it.value }} size="sm" />
+    if (it.type === 'badge') return <span className="shop-pv">{it.value}</span>
+    if (it.type === 'nickColor') return <span className="shop-pv" style={{ color: it.value, fontWeight: 600 }}>Aa</span>
+    return <span className={'shop-pv bgpv bg-' + it.value} />
+  }
+  return (
+    <Page title="Монеты и оформление" onBack={onBack}>
+      <div className="balance">
+        <span className="big">{coins} 🪙</span>
+        <span>Монеты дают за призовые места в мини-играх в группах: 🥇 30, 🥈 20, 🥉 10, за участие 5. Купить монеты за деньги нельзя.</span>
+      </div>
+      <p className="group-title">Так ты выглядишь</p>
+      <ProfileCard user={user} settings={{ showClass: true, showInterests: false }} />
+      {SHOP_GROUPS.map(([type, title]) => (
+        <div key={type}>
+          <p className="group-title">{title}</p>
+          <div className="group">
+            {shop.filter((it) => it.type === type).map((it) => {
+              const has = owned.includes(it.id)
+              const on = user[it.type] === it.value
+              return (
+                <div key={it.id} className="row">
+                  {preview(it)}
+                  <span className="rt">{it.title}{!has && <small>{it.price} 🪙</small>}</span>
+                  {has
+                    ? <button className={'mini-btn' + (on ? ' on' : '')} onClick={() => toggle(it)}>{on ? 'Надето ✓' : 'Надеть'}</button>
+                    : <button className="mini-btn" disabled={coins < it.price} onClick={() => buy(it)}>{coins < it.price ? `Нужно ${it.price}` : 'Купить'}</button>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </Page>
   )
 }
@@ -272,7 +324,8 @@ function NotifPage({ settings, onSettings, onBack }) {
 }
 
 // ---------- О приложении ----------
-function AboutPage({ onBack, onReset }) {
+function AboutPage({ user, onBack, onReset, onRole }) {
+  const [confirm, setConfirm] = useState(false)
   return (
     <Page title="О приложении" onBack={onBack}>
       <p className="group-title">Правила общения</p>
@@ -282,15 +335,39 @@ function AboutPage({ onBack, onReset }) {
         <span>3. Личка — только по взаимному согласию.</span>
         <span>4. Не пиши в чатах телефон, адрес и где ты сейчас.</span>
       </div>
+
       <p className="group-title">Как работает модерация</p>
-      <div className="group pad" style={{ fontSize: 14.5 }}>
-        Жалобу сначала смотрит ИИ-модератор: он помечает, насколько всё серьёзно. Решение принимает человек. Сообщение, на которое ты пожаловался, у тебя сразу скрывается.
+      <div className="group pad" style={{ fontSize: 14.5, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span><b>1. Жалоба.</b> Нажимаешь на сообщение → «Пожаловаться» → выбираешь причину. У тебя оно сразу скрывается, автор не узнает, кто пожаловался.</span>
+        <span><b>2. ИИ-помощник</b> читает только это сообщение и помечает, насколько всё серьёзно: «шутка», «грубо», «травля», «опасно».</span>
+        <span><b>3. Решает человек</b> — школьный модератор (например, психолог или соцпедагог). Он видит только сообщения с жалобами, а не все чаты. Может попросить удалить, предупредить или на время ограничить отправку.</span>
+        <span><b>4. Ответ.</b> Тебе приходит уведомление, чем всё закончилось.</span>
       </div>
+      <p className="group-note">Мат и «неправильные» слова сами по себе не нарушение. Нарушение — когда это задевает человека и он жалуется.</p>
+
+      <p className="group-title">Режим демонстрации</p>
       <div className="group">
-        <Row title="Школьный круг" sub="Учебный прототип · УрбанКод-2026" right={<span className="rv">v0.2</span>} />
-        <Row title={<span style={{ color: 'var(--danger)' }}>Сбросить прототип и начать заново</span>} onClick={onReset} right={null} />
+        <Row title={user.role === 'teacher' ? 'Посмотреть как ученик' : 'Посмотреть как учитель'}
+          sub={user.role === 'teacher' ? 'Вернуть чаты, друзей и мини-игры' : 'Учитель создаёт мероприятия и не видит чатов'}
+          onClick={() => onRole(user.role === 'teacher' ? 'student' : 'teacher')} />
+      </div>
+
+      <div className="group">
+        <Row title="Школьный круг" sub="Учебный прототип · УрбанКод-2026" right={<span className="rv">v0.3</span>} />
+        <Row title={<span style={{ color: 'var(--danger)' }}>Сбросить прототип и начать заново</span>} onClick={() => setConfirm(true)} right={null} />
       </div>
       <p className="group-note">Все люди и сообщения в прототипе выдуманы. Данные хранятся только на этом телефоне.</p>
+
+      {confirm && (
+        <div className="sheet-bg" onClick={() => setConfirm(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <h3>Начать заново?</h3>
+            <p>Пропадут твой профиль, сообщения, монеты и настройки. Вернётся стартовый экран.</p>
+            <button className="btn danger" onClick={onReset}>Сбросить</button>
+            <button className="btn ghost" onClick={() => setConfirm(false)}>Отмена</button>
+          </div>
+        </div>
+      )}
     </Page>
   )
 }
