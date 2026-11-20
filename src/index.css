@@ -1,0 +1,377 @@
+/* ===== Темы =====
+   Все цвета приложения — это переменные. Тема просто подменяет их значения,
+   поэтому переключение темы = смена одного атрибута data-theme у <html>. */
+
+:root,
+[data-theme='classic'] {
+  --bg: #ffffff;
+  --bg-2: #f4f4f5;
+  --text: #000000;
+  --text-2: #707579;
+  --line: #e7e7e7;
+  --accent: #3390ec;
+  --accent-text: #ffffff;
+  --link: #3390ec;
+  --chat-bg: #dce8d2;
+  --bubble: #ffffff;
+  --bubble-text: #000000;
+  --own: #effdde;
+  --own-text: #000000;
+  --own-meta: #5daa5d;
+  --danger: #e53935;
+  --badge: #3390ec;
+}
+
+[data-theme='dark'] {
+  --bg: #212121;
+  --bg-2: #2c2c2c;
+  --text: #ffffff;
+  --text-2: #aaaaaa;
+  --line: #2f2f2f;
+  --accent: #8774e1;
+  --accent-text: #ffffff;
+  --link: #8bc7ff;
+  --chat-bg: #0f0f0f;
+  --bubble: #2b2b2b;
+  --bubble-text: #ffffff;
+  --own: #766ac8;
+  --own-text: #ffffff;
+  --own-meta: #d6d1f5;
+  --danger: #ff6b6b;
+  --badge: #8774e1;
+}
+
+[data-theme='clean'] {
+  --bg: #ffffff;
+  --bg-2: #f3f4f6;
+  --text: #111111;
+  --text-2: #8e8e93;
+  --line: #ececec;
+  --accent: #2aabee;
+  --accent-text: #ffffff;
+  --link: #1e88e5;
+  --chat-bg: #f3f4f6;
+  --bubble: #ffffff;
+  --bubble-text: #111111;
+  --own: #2aabee;
+  --own-text: #ffffff;
+  --own-meta: #d4eefc;
+  --danger: #e53935;
+  --badge: #2aabee;
+}
+
+/* ===== Настройки оформления поверх темы ===== */
+:root { --msg-fs: 15px; }
+[data-textsize='sm'] { --msg-fs: 13.5px; }
+[data-textsize='lg'] { --msg-fs: 17px; }
+[data-textsize='xl'] { --msg-fs: 19.5px; }
+
+[data-wall='plain'] { --wall: var(--bg-2); }
+[data-wall='dots'] { --wall: radial-gradient(rgba(127,127,127,0.22) 1.2px, transparent 1.3px) 0 0 / 18px 18px, var(--chat-bg); }
+[data-wall='sunset'] { --wall: linear-gradient(165deg, #f7d2ad, #eab0c8); }
+[data-wall='mint'] { --wall: linear-gradient(165deg, #c4ead8, #b2d6f0); }
+[data-wall='night'] { --wall: linear-gradient(165deg, #1d2742, #3b4f6d); }
+
+/* ===== База ===== */
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+  background: var(--bg-2);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
+input, textarea { font: inherit; color: inherit; }
+
+/* Приложение — колонка шириной с телефон; на компьютере стоит по центру */
+.app {
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ===== Общие кусочки ===== */
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  min-height: 56px;
+  flex: none;
+}
+.topbar h1 { font-size: 19px; font-weight: 600; margin: 0; flex: 1; }
+.icon-btn { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--text-2); flex: none; }
+.icon-btn:active { background: var(--bg-2); }
+.icon-btn svg { width: 24px; height: 24px; }
+
+.scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+.avatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  display: grid; place-items: center;
+  color: #fff; font-weight: 600; font-size: 18px; flex: none;
+}
+.avatar.sm { width: 36px; height: 36px; font-size: 14px; }
+
+.btn {
+  display: block; width: 100%;
+  padding: 14px; border-radius: 12px;
+  background: var(--accent); color: var(--accent-text);
+  font-weight: 600; text-align: center;
+}
+.btn:active { filter: brightness(0.93); }
+.btn.ghost { background: transparent; color: var(--link); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+
+/* ===== Стартовый экран ===== */
+.welcome { padding: 32px 24px 24px; display: flex; flex-direction: column; gap: 20px; min-height: 100%; }
+.welcome .logo { width: 96px; height: 96px; border-radius: 26px; align-self: center; }
+.welcome h2 { font-size: 26px; text-align: center; margin: 0; }
+.welcome .lead { text-align: center; color: var(--text-2); margin: -8px 0 0; }
+.facts { display: flex; flex-direction: column; gap: 12px; background: var(--bg-2); border-radius: 16px; padding: 16px; }
+.fact { display: flex; gap: 12px; align-items: flex-start; }
+.fact .dot { width: 32px; height: 32px; border-radius: 10px; background: var(--accent); color: var(--accent-text); display: grid; place-items: center; flex: none; }
+.fact .dot svg { width: 18px; height: 18px; }
+.fact b { display: block; font-weight: 600; }
+.fact span { color: var(--text-2); font-size: 14px; }
+.address { text-align: center; font-size: 13px; color: var(--text-2); }
+.address b { color: var(--text); }
+.spacer { flex: 1; }
+
+/* ===== Правила ===== */
+.rules { padding: 24px; display: flex; flex-direction: column; gap: 16px; min-height: 100%; }
+.rules h2 { margin: 0; font-size: 24px; }
+.rule { display: flex; gap: 14px; align-items: flex-start; padding: 14px; background: var(--bg-2); border-radius: 14px; }
+.rule .num { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-text); display: grid; place-items: center; font-weight: 600; font-size: 14px; flex: none; }
+.rule b { display: block; }
+.rule span { color: var(--text-2); font-size: 14px; }
+.check { display: flex; gap: 10px; align-items: center; font-size: 15px; }
+.check input { width: 22px; height: 22px; accent-color: var(--accent); }
+
+/* ===== Регистрация ===== */
+.form { padding: 20px 20px 28px; display: flex; flex-direction: column; gap: 14px; }
+.form h2 { margin: 0 0 4px; font-size: 24px; }
+.field label { display: block; font-size: 13px; color: var(--text-2); margin: 0 0 6px 4px; }
+.field input, .field select {
+  width: 100%; padding: 13px 14px; border-radius: 12px;
+  border: 1.5px solid var(--line); background: var(--bg); color: var(--text); font-size: 16px; outline: none;
+}
+.field input:focus, .field select:focus { border-color: var(--accent); }
+.field .hint { font-size: 12px; color: var(--text-2); margin: 5px 4px 0; }
+.field .err { font-size: 12px; color: var(--danger); margin: 5px 4px 0; }
+.fine { font-size: 11.5px; color: var(--text-2); line-height: 1.35; background: var(--bg-2); padding: 10px 12px; border-radius: 10px; }
+.seg { display: flex; background: var(--bg-2); border-radius: 12px; padding: 3px; }
+.seg button { flex: 1; padding: 9px; border-radius: 10px; color: var(--text-2); font-weight: 500; }
+.seg button.on { background: var(--bg); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { padding: 7px 13px; border-radius: 18px; background: var(--bg-2); color: var(--text); font-size: 14px; border: 1.5px solid transparent; }
+.chip.on { background: var(--accent); color: var(--accent-text); }
+.demo-note { font-size: 12px; text-align: center; color: var(--text-2); }
+
+/* ===== Список чатов ===== */
+.search { margin: 8px 12px; padding: 9px 14px; border-radius: 20px; background: var(--bg-2); color: var(--text-2); display: flex; gap: 8px; align-items: center; font-size: 15px; }
+.search input { border: 0; outline: 0; background: transparent; flex: 1; }
+.search svg { width: 18px; height: 18px; }
+.folders { display: flex; gap: 18px; padding: 4px 16px 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.folders button { padding: 8px 0 10px; color: var(--text-2); font-weight: 500; white-space: nowrap; border-bottom: 2.5px solid transparent; }
+.folders button.on { color: var(--accent); border-bottom-color: var(--accent); }
+.chat-row { display: flex; gap: 12px; align-items: center; padding: 8px 14px; width: 100%; text-align: left; }
+.chat-row:active { background: var(--bg-2); }
+.chat-row .body { flex: 1; min-width: 0; border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: -8px; }
+.chat-row .row1, .chat-row .row2 { display: flex; gap: 8px; align-items: center; }
+.chat-row .title { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-row .time { font-size: 12px; color: var(--text-2); }
+.chat-row .last { flex: 1; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14.5px; }
+.chat-row .last em { font-style: normal; color: var(--text); }
+.badge { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px; background: var(--badge); color: #fff; font-size: 12px; font-weight: 600; display: grid; place-items: center; }
+.badge.muted { background: var(--text-2); }
+.fab { position: absolute; right: 16px; bottom: 76px; width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: var(--accent-text); display: grid; place-items: center; box-shadow: 0 3px 10px rgba(0,0,0,0.22); }
+.fab svg { width: 26px; height: 26px; }
+
+/* ===== Нижнее меню (как в Telegram: только на главных экранах) ===== */
+.tabbar {
+  display: flex; flex: none;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tabbar button { flex: 1; padding: 7px 0 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; color: var(--text-2); position: relative; }
+.tabbar button svg { width: 26px; height: 26px; }
+.tabbar button.on { color: var(--accent); }
+.tabbar .tbadge { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; display: grid; place-items: center; }
+
+/* ===== Экран чата ===== */
+.chat-head { cursor: pointer; flex: 1; min-width: 0; }
+.chat-head .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-head .s { font-size: 13px; color: var(--text-2); }
+.messages { flex: 1; overflow-y: auto; background: var(--wall, var(--chat-bg)); padding: 10px 10px 6px; display: flex; flex-direction: column; gap: 4px; }
+.day { align-self: center; font-size: 13px; padding: 3px 10px; border-radius: 12px; background: rgba(0,0,0,0.18); color: #fff; margin: 6px 0; }
+.msg-wrap { display: flex; gap: 6px; align-items: flex-end; max-width: 86%; }
+.msg-wrap.own { align-self: flex-end; }
+.msg {
+  background: var(--bubble); color: var(--bubble-text);
+  padding: 6px 10px 5px; border-radius: 14px 14px 14px 4px;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.08);
+  min-width: 90px;
+}
+.own .msg { background: var(--own); color: var(--own-text); border-radius: 14px 14px 4px 14px; }
+.msg .from { font-size: 13.5px; font-weight: 600; margin-bottom: 1px; }
+.msg .text { white-space: pre-wrap; word-wrap: break-word; font-size: var(--msg-fs); }
+button.msg { display: block; text-align: left; font: inherit; width: auto; transition: filter 0.1s, transform 0.1s; }
+button.msg:active, button.msg.pressed { filter: brightness(0.93); transform: scale(0.985); }
+.quote { border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 0 6px 6px 0; padding: 3px 8px; margin: 2px 0 4px; font-size: 13px; display: flex; flex-direction: column; max-width: 260px; }
+.quote b { color: var(--link); font-weight: 600; }
+.quote span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.85; }
+.own .quote { border-left-color: currentColor; background: rgba(0,0,0,0.06); }
+.own .quote b { color: inherit; }
+.reacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.react { font-size: 13px; padding: 2px 8px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--link); cursor: pointer; }
+.react.mine { background: var(--accent); color: var(--accent-text); }
+.own .react { background: rgba(0,0,0,0.08); color: inherit; }
+.own .react.mine { background: rgba(0,0,0,0.25); color: inherit; }
+.msg .meta { display: flex; gap: 12px; align-items: center; font-size: 11.5px; color: var(--text-2); margin-top: 3px; }
+.own .msg .meta { color: var(--own-meta); justify-content: flex-end; }
+.msg .meta .acts { display: flex; gap: 12px; }
+.msg .meta .acts button { color: var(--text-2); font-size: 11.5px; }
+.msg .meta .acts button:active { color: var(--danger); }
+.msg .meta .tm { margin-left: auto; }
+.hidden-msg { font-size: 13px; color: var(--text-2); font-style: italic; }
+.hidden-msg button { color: var(--link); font-style: normal; margin-left: 6px; }
+
+.meet { min-width: 230px; }
+.meet .lbl { font-size: 12px; font-weight: 600; color: var(--link); text-transform: uppercase; letter-spacing: 0.03em; }
+.own .meet .lbl { color: inherit; opacity: 0.85; }
+.meet .what { font-weight: 600; font-size: 16px; margin: 2px 0; }
+.meet .who { font-size: 13px; color: var(--text-2); }
+.own .meet .who { color: var(--own-meta); }
+.meet .go { display: block; width: 100%; margin-top: 8px; padding: 8px; border-radius: 10px; background: var(--accent); color: var(--accent-text); font-weight: 600; }
+.meet .go.on { background: transparent; color: var(--link); border: 1.5px solid var(--link); }
+
+.composer { display: flex; gap: 8px; align-items: flex-end; padding: 8px 10px; padding-bottom: max(8px, env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--line); flex: none; }
+.composer textarea { flex: 1; resize: none; border: 0; outline: 0; background: var(--bg-2); border-radius: 20px; padding: 10px 14px; max-height: 120px; font-size: 16px; line-height: 1.3; }
+.send { width: 42px; height: 42px; border-radius: 50%; background: var(--accent); color: var(--accent-text); display: grid; place-items: center; flex: none; }
+.send svg { width: 22px; height: 22px; }
+.typing { font-size: 13px; color: var(--accent); }
+.composer.readonly { justify-content: center; color: var(--text-2); font-size: 14px; padding: 14px; }
+.composer-wrap { flex: none; background: var(--bg); }
+.compose-bar { display: flex; align-items: center; gap: 10px; padding: 6px 6px 0 14px; color: var(--accent); }
+.compose-bar > svg { width: 22px; height: 22px; flex: none; }
+.cb-body { flex: 1; min-width: 0; border-left: 2px solid var(--accent); padding-left: 8px; display: flex; flex-direction: column; font-size: 13px; }
+.cb-body b { color: var(--accent); font-weight: 600; }
+.cb-body span { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.compose-bar + .composer { border-top: 0; }
+
+/* Меню сообщения */
+.react-row { display: flex; justify-content: space-between; background: var(--bg-2); border-radius: 28px; padding: 6px 8px; }
+.react-row button { font-size: 26px; width: 44px; height: 44px; border-radius: 50%; transition: transform 0.1s; }
+.react-row button:active { transform: scale(1.25); }
+.react-row button.on { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.sheet-preview { display: flex; flex-direction: column; padding: 2px 4px; font-size: 14px; }
+.sheet-preview b { color: var(--link); }
+.sheet-preview span { color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.menu-list { display: flex; flex-direction: column; background: var(--bg-2); border-radius: 14px; overflow: hidden; }
+.menu-item { display: flex; align-items: center; gap: 14px; padding: 13px 16px; text-align: left; font-size: 16px; }
+.menu-item + .menu-item { border-top: 1px solid var(--line); }
+.menu-item svg { width: 22px; height: 22px; color: var(--text-2); }
+.menu-item:active { background: var(--line); }
+.menu-item.danger, .menu-item.danger svg { color: var(--danger); }
+.btn.danger { background: var(--danger); color: #fff; }
+
+/* ===== Всплывающее окно снизу ===== */
+.sheet-bg { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: flex-end; z-index: 10; animation: fade 0.15s; }
+.sheet { background: var(--bg); width: 100%; border-radius: 18px 18px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; animation: up 0.2s ease-out; }
+.sheet h3 { margin: 0; font-size: 18px; }
+.sheet p { margin: 0; color: var(--text-2); font-size: 14px; }
+.opt { text-align: left; padding: 13px 14px; border-radius: 12px; background: var(--bg-2); }
+.opt.on { outline: 2px solid var(--accent); }
+@keyframes fade { from { opacity: 0; } }
+@keyframes up { from { transform: translateY(40px); opacity: 0; } }
+
+.toast { position: absolute; left: 16px; right: 16px; bottom: 90px; background: rgba(30,30,30,0.92); color: #fff; padding: 12px 14px; border-radius: 12px; font-size: 14px; z-index: 20; animation: up 0.2s ease-out; }
+
+.meet .go { text-align: center; }
+
+/* ===== Профиль и настройки (как в Telegram) ===== */
+.p-head { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 16px 16px; text-align: center; }
+.p-head .avatar { width: 96px; height: 96px; font-size: 40px; margin-bottom: 6px; }
+.p-head b { font-size: 21px; }
+.p-head .st { color: var(--text-2); font-size: 14px; }
+.p-head .link-btn { color: var(--link); font-size: 14px; margin-top: 6px; font-weight: 500; }
+.group { margin: 0 12px 14px; background: var(--bg-2); border-radius: 14px; overflow: hidden; }
+.group-title { margin: 6px 26px 6px; font-size: 13px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.03em; }
+.group-note { margin: -8px 26px 14px; font-size: 12.5px; color: var(--text-2); }
+.row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; width: 100%; text-align: left; font-size: 16px; }
+.row + .row { border-top: 1px solid var(--line); }
+.row:active { background: var(--line); }
+.row .ri { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: #fff; flex: none; }
+.row .ri svg { width: 18px; height: 18px; }
+.row .rt { flex: 1; min-width: 0; }
+.row .rt small { display: block; font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .rv { color: var(--text-2); font-size: 15px; }
+.row > svg.ch { width: 18px; height: 18px; color: var(--text-2); }
+.row .radio { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--text-2); flex: none; display: grid; place-items: center; }
+.row .radio.on { border-color: var(--accent); }
+.row .radio.on::after { content: ''; width: 11px; height: 11px; border-radius: 50%; background: var(--accent); }
+.toggle { width: 46px; height: 28px; border-radius: 14px; background: var(--line); position: relative; flex: none; transition: background 0.15s; }
+[data-theme='dark'] .toggle { background: #444; }
+.toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: transform 0.15s; }
+.toggle.on { background: var(--accent); }
+.toggle.on::after { transform: translateX(18px); }
+.pad { padding: 12px 14px; }
+
+/* Превью «как тебя видят» */
+.card-view { margin: 0 12px 14px; background: var(--bg-2); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.card-view .top { display: flex; gap: 12px; align-items: center; }
+.card-view .top .avatar { width: 60px; height: 60px; font-size: 26px; }
+.card-view .top b { font-size: 18px; display: block; }
+.card-view .top span { font-size: 13px; color: var(--text-2); }
+.card-view .bio { font-size: 14.5px; }
+.card-view .status { font-size: 14px; background: var(--bg); padding: 6px 10px; border-radius: 10px; align-self: flex-start; }
+.card-view .chips .chip { background: var(--bg); font-size: 13px; padding: 5px 11px; }
+
+/* Выбор цвета / эмодзи / обоев */
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.sw { width: 38px; height: 38px; border-radius: 50%; border: 3px solid transparent; outline: 2px solid transparent; display: grid; place-items: center; font-size: 13px; color: #fff; }
+.sw.on { outline-color: var(--accent); border-color: var(--bg-2); }
+.sw.auto { background: conic-gradient(#3390ec, #9b51e0, #eb5757, #f2994a, #27ae60, #3390ec); }
+.emojis { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.emojis button { font-size: 22px; height: 38px; border-radius: 10px; }
+.emojis button.on { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.walls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.wall { height: 74px; border-radius: 12px; border: 2px solid var(--line); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; font-size: 12px; font-weight: 500; overflow: hidden; }
+.wall span { background: rgba(0,0,0,0.45); color: #fff; padding: 1px 7px; border-radius: 8px; }
+.wall.on { border-color: var(--accent); }
+.mini-chat { border-radius: 14px; padding: 12px 10px; background: var(--wall, var(--chat-bg)); display: flex; flex-direction: column; gap: 6px; margin: 0 12px 14px; }
+.mini-chat .msg { max-width: 80%; }
+.mini-chat .own-row { align-self: flex-end; max-width: 80%; }
+.field-in { width: 100%; padding: 10px 0; border: 0; outline: 0; background: transparent; font-size: 16px; }
+textarea.field-in { resize: none; }
+.counter { font-size: 12px; color: var(--text-2); text-align: right; }
+
+/* ===== Профиль и заглушки ===== */
+.profile { padding: 24px 16px; display: flex; flex-direction: column; gap: 18px; }
+.profile .me { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.profile .me .avatar { width: 88px; height: 88px; font-size: 34px; }
+.profile .me b { font-size: 20px; }
+.profile .me span { color: var(--text-2); }
+.card { background: var(--bg-2); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.card h4 { margin: 0; font-size: 13px; color: var(--text-2); font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; }
+.themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.theme-opt { border-radius: 12px; overflow: hidden; border: 2px solid transparent; text-align: center; font-size: 13px; padding-bottom: 6px; background: var(--bg); }
+.theme-opt.on { border-color: var(--accent); }
+.theme-opt .pv { height: 64px; display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 8px; margin-bottom: 6px; }
+.theme-opt .pv i { display: block; height: 12px; border-radius: 6px; width: 70%; }
+.theme-opt .pv i:last-child { align-self: flex-end; }
+.empty { padding: 48px 24px; text-align: center; color: var(--text-2); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.empty svg { width: 56px; height: 56px; color: var(--accent); }
+.empty b { color: var(--text); font-size: 18px; }
