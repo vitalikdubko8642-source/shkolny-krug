@@ -1,0 +1,41 @@
+const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core')
+const assert = require('node:assert/strict')
+;(async () => {
+  const browser = await chromium.launch({ channel: 'msedge', headless: true })
+  const page = await browser.newPage({ viewport: { width: 375, height: 812 } })
+  page.setDefaultTimeout(5000)
+  const errors = []
+  page.on('pageerror', (e) => errors.push(e.message))
+  let requests = 0
+  await page.route('https://shkolny-krug-ai.okla-school-8642.workers.dev/', async (route) => {
+    requests++
+    await route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' }, body: JSON.stringify({ answer: 'Ребята обсуждают музыку.' }) })
+  })
+  try {
+    await page.goto('http://127.0.0.1:5190/'); await page.evaluate(() => localStorage.clear()); await page.reload()
+    await page.getByRole('button', { name: 'Начать', exact: true }).click()
+    await page.locator('.check input').check(); await page.getByRole('button', { name: 'Дальше', exact: true }).click()
+    await page.getByRole('button', { name: /Заполнить пустые поля/ }).click()
+    await page.getByRole('button', { name: 'Готово', exact: true }).click()
+    await page.getByRole('button', { name: 'Пропустить' }).click()
+    await page.locator('.tabbar button', { hasText: 'Чаты' }).click()
+    await page.locator('.chat-row').filter({ hasText: 'Гитара и музыка' }).first().click()
+    await page.locator('textarea').fill('мой номер +7 900 123 45 67')
+    await page.locator('button.send').click()
+    assert.match(await page.locator('.sheet').innerText(), /Личные данные/)
+    await page.getByRole('button', { name: 'Изменить', exact: true }).click()
+    assert.equal(await page.locator('.msg-wrap.own').count(), 0)
+    await page.locator('textarea').fill('Всем привет')
+    await page.locator('button.send').click()
+    await page.locator('button.plus').click()
+    await page.getByRole('button', { name: 'Пересказать чат с ИИ' }).click()
+    assert.equal(requests, 0)
+    await page.locator('.sheet .check input').check()
+    await page.getByRole('button', { name: 'Отправить в ИИ' }).click()
+    await page.getByText('Ребята обсуждают музыку.').waitFor()
+    assert.match(await page.locator('.sheet').innerText(), /Ребята обсуждают музыку/)
+    assert.equal(requests, 1)
+    assert.deepEqual(errors, [])
+    console.log('Chat: private-data warning and explicit AI consent passed (AI response mocked).')
+  } finally { await browser.close() }
+})().catch(e => { console.error(e); process.exitCode = 1 })

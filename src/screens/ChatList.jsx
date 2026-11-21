@@ -32,7 +32,7 @@ export default function ChatList({ user, chats, messages, unread, alerts, onOpen
   const alert = alerts.find((a) => !a.resolved)
   const list = chats
     .filter((c) => folder === 'all' || c.folder === folder)
-    .filter((c) => c.title.toLowerCase().includes(q.toLowerCase()))
+    .filter((c) => c.title.toLowerCase().includes(q.toLowerCase()) || (messages[c.id] || []).some((m) => !m.hidden && m.text?.toLowerCase().includes(q.toLowerCase())))
     .map((c) => ({ c, msgs: messages[c.id] || [] }))
     .sort((a, b) => (b.c.pinned ? 1 : 0) - (a.c.pinned ? 1 : 0) || (b.msgs.at(-1)?.time || '').localeCompare(a.msgs.at(-1)?.time || ''))
 
@@ -56,7 +56,8 @@ export default function ChatList({ user, chats, messages, unread, alerts, onOpen
         ))}
       </div>
       <div className="scroll" style={{ paddingBottom: 80 }}>
-        {list.length === 0 && folder === 'dm' && (
+        {list.length === 0 && q.trim() && <div className="empty"><b>Ничего не нашли</b><span>Попробуй другой запрос.</span></div>}
+        {list.length === 0 && !q.trim() && folder === 'dm' && (
           <div className="empty"><Icon name="mail" /><b>Личных чатов пока нет</b><span>Найди ребят во вкладке «Друзья» и отправь запрос. Чат появится, когда его примут.</span></div>
         )}
         {list.map(({ c, msgs }) => {
@@ -96,6 +97,7 @@ export default function ChatList({ user, chats, messages, unread, alerts, onOpen
 function GroupForm({ chats, onClose, onCreate, onOpen }) {
   const [f, setF] = useState({ title: '', about: '', interest: null })
   const [check, setCheck] = useState(null)
+  const [difference, setDifference] = useState('')
   const set = (k, v) => { setF({ ...f, [k]: v }); setCheck(null) }
 
   const run = () => {
@@ -116,16 +118,16 @@ function GroupForm({ chats, onClose, onCreate, onOpen }) {
       <div className="chips">{INTERESTS.map((i) => <button key={i} className={'chip' + (f.interest === i ? ' on' : '')} onClick={() => set('interest', f.interest === i ? null : i)}>{i}</button>)}</div>
       {check && (
         <div className="ai-box">
-          <b>🤖 ИИ-помощник</b>
+          <b>Проверка похожих групп</b>
           {check.notes.map((n) => <span key={n}>• {n}</span>)}
           {check.similar && (
             <>
               <span>Похожая группа уже есть: «{check.similar.title}»{check.similar.byInterest ? ` — тоже про «${f.interest}»` : ''}. Может, лучше присоединиться к ней? Так людей будет больше, а групп — меньше.</span>
               <button className="btn" onClick={() => onOpen(check.similar.id)}>Открыть «{check.similar.title}»</button>
-              {!check.notes.length && <button className="btn ghost" onClick={() => onCreate(f)}>У меня другое — создать</button>}
+              {!check.notes.length && <><input className="sheet-input" value={difference} onChange={(e) => setDifference(e.target.value)} placeholder="Чем твоя группа отличается?" maxLength={100} /><button className="btn ghost" disabled={difference.trim().length < 4} onClick={() => onCreate({ ...f, about: [f.about, difference].filter(Boolean).join(' · ') })}>У меня другое — создать</button></>}
             </>
           )}
-          <small>ИИ только подсказывает. Решение за тобой, а спорные случаи смотрит модератор.</small>
+          <small>В прототипе похожие группы ищет простой алгоритм по словам и интересам. Решение за тобой.</small>
         </div>
       )}
       {!check?.similar && <button className="btn" disabled={f.title.trim().length < 4 || check?.notes.length > 0} onClick={run}>Создать</button>}

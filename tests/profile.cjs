@@ -1,0 +1,27 @@
+const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core')
+const assert = require('node:assert/strict')
+;(async () => {
+  const browser = await chromium.launch({ channel: 'msedge', headless: true })
+  const page = await browser.newPage({ viewport: { width: 375, height: 812 } })
+  page.setDefaultTimeout(5000)
+  const errors = []
+  page.on('pageerror', e => errors.push(e.message))
+  try {
+    await page.goto('http://127.0.0.1:5190/'); await page.evaluate(() => localStorage.clear()); await page.reload()
+    await page.getByRole('button', { name: 'Начать', exact: true }).click()
+    await page.locator('.check input').check(); await page.getByRole('button', { name: 'Дальше', exact: true }).click()
+    await page.getByRole('button', { name: /Заполнить пустые поля/ }).click(); await page.getByRole('button', { name: 'Готово', exact: true }).click(); await page.getByRole('button', { name: 'Пропустить' }).click()
+    await page.locator('.tabbar button', { hasText: 'Профиль' }).click()
+    await page.getByRole('button', { name: /Мой профиль/ }).click()
+    const nickname = page.locator('input.field-in').first()
+    await nickname.fill('pixel_cat')
+    assert.equal((await page.locator('.card-view b').first().innerText()).includes('pixel_cat'), false)
+    const status = page.locator('input[placeholder="Чем занят прямо сейчас?"]')
+    await status.fill('мой номер +7 900 123 45 67')
+    await status.blur()
+    assert.match(await page.locator('.sheet').innerText(), /Личные данные/)
+    await page.locator('.sheet').getByRole('button', { name: 'Изменить' }).click()
+    assert.deepEqual(errors, [])
+    console.log('Profile: reserved nickname and personal-data warning passed.')
+  } finally { await browser.close() }
+})().catch(e => { console.error(e); process.exitCode = 1 })

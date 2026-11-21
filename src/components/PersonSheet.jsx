@@ -12,6 +12,7 @@ export default function PersonSheet({ person, state, common = [], onRequest, onO
       {state === 'friend' && <button className="btn" onClick={onOpenDm}>Открыть переписку</button>}
       {state === 'pending' && <button className="btn" disabled>Запрос отправлен — ждём ответа</button>}
       {state === 'incoming' && <p className="sheet-note">{person.nick} уже прислал тебе запрос — ответь во вкладке «Друзья».</p>}
+      {state === 'blocked' && <p className="sheet-note">Пользователь заблокирован. Разблокировать его можно в настройках конфиденциальности.</p>}
       {!state && <button className="btn" onClick={onRequest}>Отправить запрос на переписку</button>}
       {!state && <p className="sheet-note">Переписка начнётся, только если {person.nick} примет запрос.</p>}
     </Sheet>

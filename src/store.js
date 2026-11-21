@@ -1,12 +1,16 @@
 // Хранилище: всё, что пользователь делает, сохраняется в памяти браузера (localStorage).
-// На сервер НИЧЕГО не уходит — это прототип, так требует ТЗ.
+// Состояние хранится локально. Отдельные тексты отправляются ИИ только по согласию пользователя.
 import { useEffect, useState } from 'react'
 
 // Номер версии в ключе: когда меняется устройство данных, старые сохранения не мешают новым
 const KEY = 'shkolny-krug-v3'
 
 export function load() {
-  try { return JSON.parse(localStorage.getItem(KEY)) || {} } catch { return {} }
+  try {
+    const state = JSON.parse(localStorage.getItem(KEY)) || {}
+    if (state.user && Object.hasOwn(state.user, 'parentPhone')) delete state.user.parentPhone
+    return state
+  } catch { return {} }
 }
 
 export function save(state) {

@@ -1,0 +1,28 @@
+const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core')
+const assert = require('node:assert/strict')
+;(async () => {
+  const browser = await chromium.launch({ channel: 'msedge', headless: true })
+  const page = await browser.newPage({ viewport: { width: 320, height: 812 } })
+  page.setDefaultTimeout(5000)
+  const errors = []
+  page.on('pageerror', e => errors.push(e.message))
+  try {
+    await page.goto('http://127.0.0.1:5190/'); await page.evaluate(() => localStorage.clear()); await page.reload()
+    await page.getByRole('button', { name: 'Начать', exact: true }).click()
+    await page.locator('.check input').check(); await page.getByRole('button', { name: 'Дальше', exact: true }).click()
+    await page.getByRole('button', { name: /Заполнить пустые поля/ }).click()
+    await page.getByRole('button', { name: 'Готово', exact: true }).click(); await page.getByRole('button', { name: 'Пропустить' }).click()
+    await page.locator('.tabbar button', { hasText: 'Идеи' }).click()
+    const sent = page.locator('.idea-card').filter({ hasText: 'Зарядки для телефонов' })
+    assert.equal(await sent.locator('.idea-btns button').first().isDisabled(), true)
+    await page.locator('.fab').click()
+    await page.locator('.sheet input[placeholder^="Коротко"]').fill('Новый клуб астрономов')
+    await page.locator('.sheet textarea').fill('Наблюдаем небо вечером')
+    await page.getByRole('button', { name: 'Опубликовать', exact: true }).click()
+    assert.match(await page.locator('.idea-card').innerText(), /Новый клуб астрономов/)
+    assert.equal(await page.locator('.idea-card .idea-btns button').first().isDisabled(), true)
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+    assert.deepEqual(errors, [])
+    console.log('Ideas: closed voting, own idea and 320px layout passed.')
+  } finally { await browser.close() }
+})().catch(e => { console.error(e); process.exitCode = 1 })

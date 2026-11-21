@@ -45,7 +45,10 @@ export default function Game({ title, chatTitle, players, user, onFinish, onExit
     const table = [...rivals, { nick: user.nick, score: mine, me: true }].sort((a, b) => b.score - a.score || (a.me ? -1 : 1))
     const place = table.findIndex((r) => r.me) + 1
     // Ни одного верного ответа — монет нет (иначе можно просто жать «Начать» и копить)
-    const coins = mine === 0 ? 0 : PRIZES[place - 1] ?? 5
+    const reward = mine === 0 ? 0 : PRIZES[place - 1] ?? 5
+    const today = new Date().toLocaleDateString('en-CA')
+    const earned = user.gameRewardDate === today ? user.gameRewardTotal || 0 : 0
+    const coins = Math.max(0, Math.min(reward, 50 - earned))
     setResult({ table, place, coins })
     setPhase('done')
   }
@@ -102,7 +105,7 @@ export default function Game({ title, chatTitle, players, user, onFinish, onExit
             <div className="prize-row">
               <span>🥇 30 🪙</span><span>🥈 20 🪙</span><span>🥉 10 🪙</span><span>участие 5 🪙</span>
             </div>
-            <p className="sheet-note">Монеты тратятся на оформление профиля. Общего рейтинга нет — итоги видны только в этом раунде.</p>
+            <p className="sheet-note">Монеты тратятся на оформление профиля. Не больше 50 монет за день; общих рейтингов нет.</p>
             <p className="sheet-note">Играют: {players.map((p) => people[p]?.nick || p).join(', ')} и ты</p>
             <button className="btn" onClick={() => setPhase('count')}>Начать</button>
           </div>

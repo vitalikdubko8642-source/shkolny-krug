@@ -10,10 +10,13 @@ import { findSimilar, checkNew } from '../logic/moderation.js'
 
 const tagColor = { 'Школа': '#3390EC', 'Двор': '#F2994A', 'Досуг': '#9B51E0', 'Добро': '#EB5757', 'Учёба': '#27AE60' }
 
-export default function Ideas({ user, ideas, onSupport, onJoin, onCreate, onReport, toast }) {
+export default function Ideas({ user, ideas, onSupport, onJoin, onCreate, onReport, onAnswer, toast }) {
   const [tag, setTag] = useState('Все')
   const [open, setOpen] = useState(null)
   const [creating, setCreating] = useState(false)
+  const [report, setReport] = useState(null)
+  const [reason, setReason] = useState('')
+  const [answer, setAnswer] = useState(null)
 
   const list = ideas
     .filter((i) => tag === 'Все' || (tag === 'Мои' ? i.own : i.tag === tag))
@@ -25,7 +28,7 @@ export default function Ideas({ user, ideas, onSupport, onJoin, onCreate, onRepo
       <div className="scroll" style={{ paddingBottom: 90 }}>
         <div className="intro-card">
           <Icon name="bulb" />
-          <span>Предложи, как сделать школу лучше. Набрала <b>30 голосов</b> — идея уходит администрации, и школа отвечает здесь же.</span>
+          <span>Предложи, как сделать школу лучше. В демо после <b>30 голосов</b> идея получает статус «на рассмотрении». Реальной отправки администрации нет.</span>
         </div>
         <div className="chips scroll-x">
           {['Все', 'Мои', ...IDEA_TAGS].map((t) => <button key={t} className={'chip' + (tag === t ? ' on' : '')} onClick={() => setTag(t)}>{t}</button>)}
@@ -44,14 +47,17 @@ export default function Ideas({ user, ideas, onSupport, onJoin, onCreate, onRepo
             <p>Автор: {i.own ? 'ты' : people[i.author]?.nick || i.author} · {i.time}</p>
             {i.answer && <div className="answer"><b>Ответ школы</b>{i.answer}</div>}
             <IdeaButtons i={i} user={user} onSupport={onSupport} onJoin={onJoin} />
-            {!i.own && <button className="btn ghost" style={{ color: 'var(--danger)' }} onClick={() => { onReport(i.id); setOpen(null); toast('Жалоба отправлена модератору') }}>Пожаловаться на идею</button>}
+            {user.role === 'teacher' && i.status === 'sent' && <button className="btn" onClick={() => { setAnswer({ id: i.id, text: '' }); setOpen(null) }}>Ответить от школы (демо)</button>}
+            {!i.own && <button className="btn ghost" style={{ color: 'var(--danger)' }} onClick={() => { setReport(i.id); setOpen(null); setReason('') }}>Пожаловаться на идею</button>}
           </Sheet>
         )
       })()}
 
       {creating && <IdeaForm ideas={ideas} onClose={() => setCreating(false)}
-        onSupportOther={(id) => { onSupport(id, true); setCreating(false); setOpen(id); toast('Голос отдан похожей идее — так у неё больше шансов') }}
+        onSupportOther={(id) => { const idea = ideas.find((item) => item.id === id); onSupport(id, true); setCreating(false); setOpen(id); toast(idea?.own ? 'Это твоя идея' : idea?.status ? 'Голосование уже завершено' : 'Идея открыта') }}
         onSend={(idea) => { onCreate(idea); setCreating(false); setTag('Мои'); toast('Идея опубликована! Расскажи о ней в чате, чтобы собрать голоса') }} />}
+      {report && <Sheet title="Пожаловаться на идею" onClose={() => setReport(null)}><p>Что случилось? В прототипе идея скроется только на этом устройстве; жалоба никому не отправляется.</p><textarea className="sheet-input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Причина жалобы" maxLength={300} /><button className="btn" disabled={!reason.trim()} onClick={() => { onReport(report); setReport(null); toast('Идея скрыта на этом устройстве') }}>Скрыть и подтвердить</button></Sheet>}
+      {answer && <Sheet title="Ответ школы — демонстрация" onClose={() => setAnswer(null)}><textarea className="sheet-input" value={answer.text} onChange={(e) => setAnswer({ ...answer, text: e.target.value })} placeholder="Текст ответа" maxLength={300} /><button className="btn" disabled={!answer.text.trim()} onClick={() => { onAnswer(answer.id, answer.text.trim()); setAnswer(null); toast('Демо-ответ сохранён') }}>Сохранить ответ</button></Sheet>}
     </>
   )
 }
@@ -62,7 +68,7 @@ function Progress({ i }) {
   return (
     <div className="progress">
       <div className="bar"><i style={{ width: pct + '%' }} /></div>
-      <span>{i.status === 'done' ? 'Сделано' : i.status === 'sent' ? 'Передано администрации' : `${sup} из ${i.goal} голосов`}</span>
+      <span>{i.status === 'done' ? 'Демо-ответ школы' : i.status === 'sent' ? 'На рассмотрении · демо' : `${sup} из ${i.goal} голосов`}</span>
     </div>
   )
 }
@@ -72,7 +78,7 @@ function IdeaButtons({ i, user, onSupport, onJoin }) {
   if (i.status === 'done') return null
   return (
     <div className="idea-btns">
-      <button className={'mini-btn' + (i.supported ? ' on' : '')} disabled={i.own} onClick={(e) => { e.stopPropagation(); onSupport(i.id) }}>
+      <button className={'mini-btn' + (i.supported ? ' on' : '')} disabled={i.own || !!i.status} onClick={(e) => { e.stopPropagation(); onSupport(i.id) }}>
         {i.own ? `👍 ${sup}` : i.supported ? `👍 Поддержал · ${sup}` : `👍 Поддержать · ${sup}`}
       </button>
       {i.needPeople && user.role !== 'teacher' && (
@@ -89,7 +95,7 @@ function IdeaCard({ i, user, onOpen, onSupport, onJoin }) {
     <div className={'idea-card' + (i.status === 'done' ? ' done' : '')} onClick={onOpen} role="button">
       <div className="idea-top">
         <span className="tag" style={{ background: tagColor[i.tag] }}>{i.tag}</span>
-        {i.status === 'sent' && <span className="pill">📨 У администрации</span>}
+        {i.status === 'sent' && <span className="pill">📨 На рассмотрении · демо</span>}
         {i.status === 'done' && <span className="pill ok">✓ Сделано</span>}
         {i.own && <span className="pill">Твоя идея</span>}
       </div>
@@ -106,6 +112,7 @@ function IdeaCard({ i, user, onOpen, onSupport, onJoin }) {
 function IdeaForm({ ideas, onClose, onSend, onSupportOther }) {
   const [f, setF] = useState({ title: '', desc: '', tag: 'Школа', needPeople: false })
   const [check, setCheck] = useState(null) // результат проверки: { similar, notes }
+  const [difference, setDifference] = useState('')
   const set = (k, v) => { setF({ ...f, [k]: v }); setCheck(null) }
 
   const runCheck = () => {
@@ -127,16 +134,16 @@ function IdeaForm({ ideas, onClose, onSend, onSupportOther }) {
 
       {check && (
         <div className="ai-box">
-          <b>🤖 ИИ-помощник</b>
+          <b>Проверка похожих идей</b>
           {check.notes.map((n) => <span key={n}>• {n}</span>)}
           {check.similar && (
             <>
               <span>Похожая идея уже есть: «{check.similar.title}». Если поддержать её, голоса не разделятся и у идеи будет больше шансов.</span>
               <button className="btn" onClick={() => onSupportOther(check.similar.id)}>Поддержать похожую</button>
-              {!blocked && <button className="btn ghost" onClick={() => onSend(f)}>У меня другое — опубликовать</button>}
+              {!blocked && <><input className="sheet-input" value={difference} onChange={(e) => setDifference(e.target.value)} placeholder="Чем твоя идея отличается?" maxLength={100} /><button className="btn ghost" disabled={difference.trim().length < 4} onClick={() => onSend({ ...f, desc: [f.desc, difference].filter(Boolean).join(' · ') })}>У меня другое — опубликовать</button></>}
             </>
           )}
-          <small>ИИ только подсказывает. Решение за тобой, а спорные случаи смотрит модератор.</small>
+          <small>В прототипе похожие идеи ищет простой алгоритм по словам. Решение за тобой.</small>
         </div>
       )}
       {!check?.similar && <button className="btn" disabled={f.title.trim().length < 4 || blocked} onClick={runCheck}>Опубликовать</button>}

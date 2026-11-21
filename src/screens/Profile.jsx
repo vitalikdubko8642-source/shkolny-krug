@@ -4,8 +4,9 @@ import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import Avatar, { Nick } from '../components/Avatar.jsx'
 import ProfileCard from '../components/ProfileCard.jsx'
+import Sheet from '../components/Sheet.jsx'
 import { INTERESTS } from './Register.jsx'
-import { shop } from '../data/demo.js'
+import { shop, people } from '../data/demo.js'
 
 export const AVATAR_COLORS = ['#F2994A', '#EB5757', '#E0557F', '#BB6BD9', '#9B51E0', '#2F80ED', '#3390EC', '#56CCF2', '#27AE60', '#6FCF97', '#828282', '#333333']
 const EMOJIS = ['😎', '🦊', '🐱', '🐼', '🐸', '🦄', '🐙', '👾', '🎸', '⚽', '🏀', '🎨', '📚', '🎮', '🚀', '⭐']
@@ -98,7 +99,16 @@ export default function Profile({ user, settings, page, onPage, onUser, onSettin
 // ---------- Мой профиль ----------
 function MePage({ user, settings, onUser, onBack }) {
   const [nick, setNick] = useState(user.nick)
-  const nickOk = /^[a-zA-Z0-9_.]{3,20}$/.test(nick)
+  const [status, setStatus] = useState(user.status || '')
+  const [bio, setBio] = useState(user.bio || '')
+  const [pendingPersonal, setPendingPersonal] = useState(null)
+  const savePublic = (key, value) => {
+    if (value === (user[key] || '')) return
+    if (/(?:\+?7|8)[\s()-]*\d(?:[\s()-]*\d){9}/.test(value) || /(?:^|\s)(?:ул\.|улица|проспект|переулок)\s+\S+/i.test(value)) setPendingPersonal({ key, value })
+    else onUser({ [key]: value })
+  }
+  const validNick = (value) => /^[a-zA-Z0-9_.]{3,20}$/.test(value) && !Object.keys(people).some((n) => n.toLowerCase() === value.toLowerCase())
+  const nickOk = validNick(nick)
   const toggle = (i) => onUser({ interests: user.interests.includes(i) ? user.interests.filter((x) => x !== i) : [...user.interests, i] })
 
   return (
@@ -123,22 +133,22 @@ function MePage({ user, settings, onUser, onBack }) {
 
       <p className="group-title">Никнейм</p>
       <div className="group pad">
-        <input className="field-in" value={nick} onChange={(e) => { setNick(e.target.value); if (/^[a-zA-Z0-9_.]{3,20}$/.test(e.target.value)) onUser({ nick: e.target.value }) }} autoCapitalize="off" />
+        <input className="field-in" value={nick} onChange={(e) => { setNick(e.target.value); if (validNick(e.target.value)) onUser({ nick: e.target.value }) }} autoCapitalize="off" />
       </div>
-      <p className="group-note" style={{ color: nickOk ? undefined : 'var(--danger)' }}>От 3 до 20 символов: латиница, цифры, _ и точка. Фамилию лучше не писать.</p>
+      <p className="group-note" style={{ color: nickOk ? undefined : 'var(--danger)' }}>От 3 до 20 символов: латиница, цифры, подчёркивание и точка. Ник не должен совпадать с существующим.</p>
 
       <p className="group-title">Статус</p>
       <div className="group pad">
-        <input className="field-in" value={user.status || ''} maxLength={40} placeholder="Чем занят прямо сейчас?" onChange={(e) => onUser({ status: e.target.value })} />
+        <input className="field-in" value={status} maxLength={40} placeholder="Чем занят прямо сейчас?" onChange={(e) => setStatus(e.target.value)} onBlur={() => savePublic('status', status)} />
         <div className="chips" style={{ marginTop: 4 }}>
-          {STATUS_PRESETS.map((s) => <button key={s} className={'chip' + (user.status === s ? ' on' : '')} style={{ background: user.status === s ? undefined : 'var(--bg)' }} onClick={() => onUser({ status: user.status === s ? '' : s })}>{s}</button>)}
+          {STATUS_PRESETS.map((s) => <button key={s} className={'chip' + (status === s ? ' on' : '')} style={{ background: status === s ? undefined : 'var(--bg)' }} onClick={() => { const value = status === s ? '' : s; setStatus(value); onUser({ status: value }) }}>{s}</button>)}
         </div>
       </div>
 
       <p className="group-title">О себе</p>
       <div className="group pad">
-        <textarea className="field-in" rows={3} maxLength={120} value={user.bio || ''} placeholder="Пару слов о себе: что любишь, чем занимаешься" onChange={(e) => onUser({ bio: e.target.value })} />
-        <div className="counter">{(user.bio || '').length}/120</div>
+        <textarea className="field-in" rows={3} maxLength={120} value={bio} placeholder="Пару слов о себе: что любишь, чем занимаешься" onChange={(e) => setBio(e.target.value)} onBlur={() => savePublic('bio', bio)} />
+        <div className="counter">{bio.length}/120</div>
       </div>
 
       {user.role !== 'teacher' && (
@@ -154,6 +164,7 @@ function MePage({ user, settings, onUser, onBack }) {
           <p className="group-note">По интересам тебе будут предлагать ребят и группы во вкладке «Друзья».</p>
         </>
       )}
+      {pendingPersonal && <Sheet title="Личные данные в профиле" onClose={() => setPendingPersonal(null)}><p>Похоже, здесь телефон или адрес. Профиль виден другим ученикам.</p><button className="btn" onClick={() => setPendingPersonal(null)}>Изменить</button><button className="btn ghost" onClick={() => { onUser({ [pendingPersonal.key]: pendingPersonal.value }); setPendingPersonal(null) }}>Всё равно сохранить</button></Sheet>}
     </Page>
   )
 }
@@ -212,21 +223,10 @@ function LookPage({ settings, onSettings, onBack }) {
 }
 
 // ---------- Конфиденциальность ----------
-function PrivacyPage({ user, settings, onSettings, blocked = [], onUnblock, onBack }) {
+function PrivacyPage({ settings, onSettings, blocked = [], onUnblock, onBack }) {
   const flip = (k) => () => onSettings({ [k]: !settings[k] })
   return (
     <Page title="Конфиденциальность" onBack={onBack}>
-      {user.young && (
-        <>
-          <p className="group-title">Родительский контроль · 1–4 класс</p>
-          <div className="group pad" style={{ fontSize: 14.5, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span>✓ Родитель знает, что ты зарегистрирован в «Школьном круге».</span>
-            <span>✓ Раз в неделю ИИ-помощник присылает ему короткую сводку: в каких группах ты общаешься и были ли жалобы.</span>
-            <span>✗ Переписку родитель не читает.</span>
-            <span>✓ Если кто-то пожаловался на сообщение, адресованное тебе, родитель получит уведомление.</span>
-          </div>
-        </>
-      )}
       <p className="group-title">Кто может прислать запрос в личку</p>
       <div className="group">
         {DM.map(([id, title]) => (
@@ -241,7 +241,9 @@ function PrivacyPage({ user, settings, onSettings, blocked = [], onUnblock, onBa
         <Row title="Мои интересы" onClick={flip('showInterests')} right={<Toggle on={settings.showInterests} />} />
         <Row title="Когда я в сети" onClick={flip('showOnline')} right={<Toggle on={settings.showOnline} />} />
       </div>
-      <p className="group-note">ФИО и номер телефона не видит никто из ребят — только администратор школы, чтобы проверить, что ты из нашей школы.</p>
+      <p className="group-note">В прототипе вводи только выдуманные данные: они хранятся в браузере и никому не отправляются.</p>
+      <p className="group-title">Комфорт в чатах</p>
+      <div className="group"><Row title="Скрывать мат" sub="Нажми на скрытое слово, чтобы увидеть" onClick={flip('blurProfanity')} right={<Toggle on={settings.blurProfanity} />} /></div>
 
       <p className="group-title">Заблокированные</p>
       <div className="group">
@@ -306,6 +308,7 @@ function NotifPage({ settings, onSettings, onBack }) {
   const flip = (k) => () => onSettings({ notif: { ...n, [k]: !n[k] } })
   return (
     <Page title="Уведомления" onBack={onBack}>
+      <p className="group-note">В учебном прототипе настройки сохраняются на устройстве. Настоящие push-уведомления и звук пока не подключены.</p>
       <div className="group">
         <Row title="Сообщения в группах" onClick={flip('groups')} right={<Toggle on={n.groups} />} />
         <Row title="Личные сообщения" onClick={flip('dm')} right={<Toggle on={n.dm} />} />
@@ -326,11 +329,13 @@ function NotifPage({ settings, onSettings, onBack }) {
 // ---------- О приложении ----------
 function AboutPage({ user, onBack, onReset, onRole }) {
   const [confirm, setConfirm] = useState(false)
+  const [teacherCode, setTeacherCode] = useState(null)
+  const [codeError, setCodeError] = useState(false)
   return (
     <Page title="О приложении" onBack={onBack}>
       <p className="group-title">Правила общения</p>
       <div className="group pad" style={{ fontSize: 14.5, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <span>1. Общайся как в жизни — запрещённых слов нет, главное не задевать других.</span>
+        <span>1. Уважай других: не оскорбляй и не трави собеседников.</span>
         <span>2. Задело — нажми на сообщение и пожалуйся.</span>
         <span>3. Личка — только по взаимному согласию.</span>
         <span>4. Не пиши в чатах телефон, адрес и где ты сейчас.</span>
@@ -339,17 +344,15 @@ function AboutPage({ user, onBack, onReset, onRole }) {
       <p className="group-title">Как работает модерация</p>
       <div className="group pad" style={{ fontSize: 14.5, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <span><b>1. Жалоба.</b> Нажимаешь на сообщение → «Пожаловаться» → выбираешь причину. У тебя оно сразу скрывается, автор не узнает, кто пожаловался.</span>
-        <span><b>2. ИИ-помощник</b> читает только это сообщение и помечает, насколько всё серьёзно: «шутка», «грубо», «травля», «опасно».</span>
-        <span><b>3. Решает человек</b> — школьный модератор (например, психолог или соцпедагог). Он видит только сообщения с жалобами, а не все чаты. Может попросить удалить, предупредить или на время ограничить отправку.</span>
-        <span><b>4. Ответ.</b> Тебе приходит уведомление, чем всё закончилось.</span>
+        <span><b>Демонстрация:</b> жалобы сохраняются только на этом устройстве и не отправляются модератору. Можно отдельно запросить анализ ИИ, подтвердив отправку выдуманного текста.</span>
       </div>
-      <p className="group-note">Мат и «неправильные» слова сами по себе не нарушение. Нарушение — когда это задевает человека и он жалуется.</p>
+      <p className="group-note">В будущей версии решение по жалобе будет принимать человек.</p>
 
       <p className="group-title">Режим демонстрации</p>
       <div className="group">
         <Row title={user.role === 'teacher' ? 'Посмотреть как ученик' : 'Посмотреть как учитель'}
-          sub={user.role === 'teacher' ? 'Вернуть чаты, друзей и мини-игры' : 'Учитель создаёт мероприятия и не видит чатов'}
-          onClick={() => onRole(user.role === 'teacher' ? 'student' : 'teacher')} />
+          sub={user.role === 'teacher' ? 'Вернуть чаты, друзей и мини-игры' : 'Вход по демонстрационному коду'}
+          onClick={() => user.role === 'teacher' ? onRole('student') : setTeacherCode('')} />
       </div>
 
       <div className="group">
@@ -357,6 +360,7 @@ function AboutPage({ user, onBack, onReset, onRole }) {
         <Row title={<span style={{ color: 'var(--danger)' }}>Сбросить прототип и начать заново</span>} onClick={() => setConfirm(true)} right={null} />
       </div>
       <p className="group-note">Все люди и сообщения в прототипе выдуманы. Данные хранятся только на этом телефоне.</p>
+      {teacherCode !== null && <div className="sheet-bg" onClick={() => setTeacherCode(null)}><div className="sheet" onClick={(e) => e.stopPropagation()}><h3>Режим учителя</h3><p>Введите код для демонстрации. Это учебная проверка, не защита учётной записи.</p><input className="sheet-input" value={teacherCode} onChange={(e) => { setTeacherCode(e.target.value); setCodeError(false) }} placeholder="Код" />{codeError && <p className="err">Код не подошёл</p>}<button className="btn" onClick={() => { if (teacherCode.trim().toUpperCase() === 'OKLA2026') { setTeacherCode(null); onRole('teacher') } else setCodeError(true) }}>Войти</button><button className="btn ghost" onClick={() => setTeacherCode(null)}>Отмена</button></div></div>}
 
       {confirm && (
         <div className="sheet-bg" onClick={() => setConfirm(false)}>

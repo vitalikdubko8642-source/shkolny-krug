@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import Avatar, { Nick } from '../components/Avatar.jsx'
 import Sheet from '../components/Sheet.jsx'
@@ -8,10 +8,15 @@ import Game from './Game.jsx'
 import { people, replies, dmReplies, MEET_PLACES, MAF_PLACE } from '../data/demo.js'
 import { commonInterests } from './Friends.jsx'
 import { now } from '../store.js'
+import { meetingDate, meetingIsFuture, meetingLabel } from '../logic/meeting.js'
+import AiSheet from '../components/AiSheet.jsx'
 
 const REASONS = ['Меня это задело', 'Оскорбляют кого-то', 'Спам или реклама', 'Делятся чужими личными данными', 'Другое']
 const REACTIONS = ['👍', '❤️', '😂', '🔥', '😮', '😢']
 const TIMES = ['13:30', '14:30', '15:00', '16:00', '17:00']
+const memberCount = (n) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'участник' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'участника' : 'участников'}`
+const messageDate = (m) => m.createdAt ? new Date(m.createdAt).toLocaleDateString('ru-RU') : 'Демо-сообщения'
+const messageDay = (m) => !m.createdAt ? 'Демо-сообщения' : messageDate(m) === new Date().toLocaleDateString('ru-RU') ? 'Сегодня' : messageDate(m)
 
 // Экран одного чата (группа, канал школы или личная переписка).
 // Нажатие на сообщение открывает меню действий:
@@ -19,12 +24,16 @@ const TIMES = ['13:30', '14:30', '15:00', '16:00', '17:00']
 //   своё  — реакция, ответить, изменить, копировать, удалить.
 // «+» у поля ввода — позвать на встречу или запустить мини-игру.
 // list — сообщения чата; onChange(fn) — изменить их (fn получает старый список).
-export default function Chat({ chat, user, list, onBack, onChange, personState, onRequest, onOpenDm, onBlock, onGameFinish, toast }) {
+export default function Chat({ chat, user, settings, list, onBack, onChange, personState, onRequest, onOpenDm, onBlock, onInvite, onGameFinish, toast }) {
   const [text, setText] = useState('')
   const [typing, setTyping] = useState(null)
   const [menu, setMenu] = useState(null)       // сообщение, по которому нажали
   const [report, setReport] = useState(null)   // на что жалуемся
   const [reason, setReason] = useState(null)
+  const [reasonDetails, setReasonDetails] = useState('')
+  const [personalWarning, setPersonalWarning] = useState(false)
+  const [aiTask, setAiTask] = useState(null)
+  const [revealed, setRevealed] = useState({})
   const [confirmDel, setConfirmDel] = useState(null)
   const [reply, setReply] = useState(null)     // на что отвечаем
   const [editing, setEditing] = useState(null) // что редактируем
@@ -44,32 +53,35 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
   const preview = (m) => (m.meet ? `Встреча: ${m.meet.place}, ${m.meet.time}` : m.game ? `Мини-игра «${m.game.title}»` : m.text)
 
   // Кто-нибудь из (выдуманных) ребят отвечает через пару секунд
-  const botAnswer = () => {
+  const botAnswer = (message = '') => {
+    if (!isDm && ((chat.own && !chat.invited?.length) || chat.id.startsWith('class:') || chat.id.startsWith('parallel:'))) return
+    if (/(?:\+?7|8)[\s()-]*\d(?:[\s()-]*\d){9}|(?:^|\s)(?:ул\.|улица|проспект|переулок)\s+\S+|дурак|урод|травл/i.test(message)) return
     let who, phrase
     if (isDm) { who = chat.nick; phrase = dmReplies } else {
-      const nicks = [...new Set(list.filter((m) => !m.own && people[m.from]?.cls).map((m) => m.from))]
+      const nicks = [...new Set([...list.filter((m) => !m.own && people[m.from]?.cls).map((m) => m.from), ...(chat.invited || [])])]
       who = nicks[Math.floor(Math.random() * nicks.length)] || 'pixel_cat'
-      phrase = replies
+      phrase = /привет|здравствуй/i.test(message) ? ['привет! рад тебя видеть 🙂'] : /встрет|пойд[её]м|погуля|поигра/i.test(message) ? ['давай! во сколько встречаемся?'] : /\?/.test(message) ? ['интересный вопрос, давайте обсудим'] : replies
     }
     setTimeout(() => setTyping(who), 700)
     setTimeout(() => {
       setTyping(null)
-      onChange((l) => [...l, { id: 'r' + Date.now(), from: who, text: phrase[Math.floor(Math.random() * phrase.length)], time: now() }])
+      onChange((l) => [...l, { id: 'r' + Date.now(), from: who, text: phrase[Math.floor(Math.random() * phrase.length)], time: now(), createdAt: new Date().toISOString() }])
     }, 2300)
   }
 
-  const send = () => {
+  const send = (confirmed = false) => {
     const t = text.trim()
-    if (!t) return
+    if (!t) { if (editing) toast('Пустое сообщение нельзя сохранить. Можно удалить его через меню.') ; return }
+    if (!isDm && !confirmed && (/(?:\+?7|8)[\s()\-]*\d(?:[\s()\-]*\d){9}/.test(t) || /(?:^|\s)(?:ул\.|улица|проспект|переулок)\s+\S+/i.test(t))) { setPersonalWarning(true); return }
     if (editing) {
       update(editing.id, { text: t, edited: true })
       setEditing(null); setText('')
       return
     }
     const r = reply && { nick: nickOf(reply), text: preview(reply) }
-    onChange((l) => [...l, { id: 'u' + Date.now(), from: user.nick, own: true, text: t, time: now(), reply: r }])
+    onChange((l) => [...l, { id: 'u' + Date.now(), from: user.nick, own: true, text: t, time: now(), createdAt: new Date().toISOString(), reply: r }])
     setText(''); setReply(null)
-    botAnswer()
+    botAnswer(t)
   }
 
   const react = (m, e) => {
@@ -82,6 +94,7 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
 
   const writePersonally = (nick) => {
     const st = personState(nick)
+    if (st === 'blocked') return toast('Сначала разблокируй пользователя в настройках')
     if (st === 'friend') return onOpenDm(nick)
     if (st === 'pending') return toast(`Запрос ${nick} уже отправлен — ждём ответа`)
     if (st === 'incoming') return toast(`${nick} уже прислал тебе запрос — ответь во вкладке «Друзья»`)
@@ -103,20 +116,20 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
   }
 
   const sendReport = () => {
-    update(report.id, { hidden: true, reported: true })
-    setReport(null); setReason(null)
-    toast('Жалоба отправлена. Модератор проверит сообщение, а у тебя оно уже скрыто.')
+    update(report.id, { hidden: true, reported: true, reportReason: reason, reportDetails: reason === 'Другое' ? reasonDetails.trim() : '' })
+    setReport(null); setReason(null); setReasonDetails('')
+    toast('Демо: сообщение скрыто в этом браузере. Жалоба не отправлена модератору.')
   }
 
   const postMeet = (meet) => {
-    onChange((l) => [...l, { id: 'u' + Date.now(), from: user.nick, own: true, text: '', time: now(), meet: { ...meet, going: 0, me: true } }])
+    onChange((l) => [...l, { id: 'u' + Date.now(), from: user.nick, own: true, text: '', time: now(), createdAt: new Date().toISOString(), meet: { ...meet, going: 0, me: true } }])
     setSheet(null)
     botAnswer()
   }
 
   const startGame = () => {
     const id = 'u' + Date.now()
-    onChange((l) => [...l, { id, from: user.nick, own: true, text: '', time: now(), game: { id, title: 'Быстрый счёт', by: user.nick, players: 1 } }])
+    onChange((l) => [...l, { id, from: user.nick, own: true, text: '', time: now(), createdAt: new Date().toISOString(), game: { id, title: 'Быстрый счёт', by: user.nick, players: 1 } }])
     setSheet(null)
     setGame({ msgId: id })
   }
@@ -135,7 +148,7 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
     const players = [...fromChat, ...extra].slice(0, 5)
     return (
       <Game title={gameMsg.game.title} chatTitle={chat.title} players={players} user={user}
-        onExit={() => setGame(null)}
+        onExit={() => { update(gameMsg.id, { game: { ...gameMsg.game, cancelled: true } }); setGame(null) }}
         onFinish={(res) => { onGameFinish(gameMsg.id, res); setGame(null) }} />
     )
   }
@@ -150,7 +163,7 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
             <div className="t">{isDm ? <Nick p={dmPerson} /> : chat.title}</div>
             {typing
               ? <div className="typing">{isDm ? 'печатает…' : `${people[typing]?.nick} печатает…`}</div>
-              : <div className="s">{isDm ? 'личная переписка' : isChannel ? `${chat.members} подписчиков` : `${chat.members} участников`}</div>}
+              : <div className="s">{isDm ? 'личная переписка' : isChannel ? `${chat.members} подписчиков` : memberCount(chat.members)}</div>}
           </div>
         </button>
         <button className="icon-btn" aria-label="О чате" onClick={() => setSheet('info')}><Icon name="more" /></button>
@@ -158,12 +171,13 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
 
       <div className="messages">
         {isDm && <div className="day">Вы оба согласились на переписку 🤝</div>}
-        <div className="day">Сегодня</div>
-        {list.map((m) => {
+        {list.map((m, index) => {
           const p = people[m.from]
           const reacts = Object.entries(m.reactions || {})
           return (
-            <div key={m.id} className={'msg-wrap' + (m.own ? ' own' : '')}>
+            <Fragment key={m.id}>
+            {(index === 0 || messageDate(list[index - 1]) !== messageDate(m)) && <div className="day">{messageDay(m)}</div>}
+            <div className={'msg-wrap' + (m.own ? ' own' : '')}>
               {m.hidden ? (
                 <div className="msg">
                   <div className="hidden-msg">
@@ -185,17 +199,18 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
                     <>
                       <div className="lbl">Встреча</div>
                       <div className="what">{m.meet.place}</div>
-                      <div className="who">{m.meet.day || 'Сегодня'}, {m.meet.time}{m.meet.note ? ` · ${m.meet.note}` : ''}</div>
+                      <div className="who">{meetingLabel(m.meet)}{m.meet.note ? ` · ${m.meet.note}` : ''}{m.meet.at && new Date(m.meet.at) <= new Date() ? ' · прошла' : ''}</div>
                       <div className="who">идут {m.meet.going + (m.meet.me ? 1 : 0)}</div>
-                      <span role="button" className={'go' + (m.meet.me ? ' on' : '')}
+                      {!m.own && (!m.meet.at || new Date(m.meet.at) > new Date()) && <span role="button" className={'go' + (m.meet.me ? ' on' : '')}
                         onClick={(e) => { e.stopPropagation(); update(m.id, { meet: { ...m.meet, me: !m.meet.me } }) }}>
                         {m.meet.me ? 'Ты идёшь ✓' : 'Я иду'}
-                      </span>
+                      </span>}
+                      {m.own && <span role="button" className="go" onClick={(e) => { e.stopPropagation(); setConfirmDel(m) }}>Отменить встречу</span>}
                     </>
                   ) : m.game ? (
                     <GameCard g={m.game} onPlay={(e) => { e.stopPropagation(); setGame({ msgId: m.id }) }} />
                   ) : (
-                    <div className="text">{m.text}</div>
+                    <div className="text">{settings?.blurProfanity ? (m.text || '').split(/((?:бля|хуй|пизд|еба)[а-яё]*)/iu).map((part, i) => /^(?:бля|хуй|пизд|еба)/iu.test(part) && !revealed[`${m.id}:${i}`] ? <span key={i} role="button" aria-label="Показать скрытое слово" onClick={(e) => { e.stopPropagation(); setRevealed((prev) => ({ ...prev, [`${m.id}:${i}`]: true })) }} style={{ background: 'var(--text-2)', color: 'transparent', borderRadius: 4 }}>{part}</span> : part) : m.text}</div>
                   )}
 
                   {reacts.length > 0 && (
@@ -206,10 +221,11 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
                       ))}
                     </div>
                   )}
-                  <div className="meta"><span className="tm">{m.edited && 'изменено '}{m.time}{m.own && ' ✓✓'}</span></div>
+                  <div className="meta"><span className="tm">{m.edited && 'изменено '}{m.time}{m.own && isDm && ' ✓✓'}</span></div>
                 </button>
               )}
             </div>
+            </Fragment>
           )
         })}
         <div ref={bottom} />
@@ -233,10 +249,10 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
             {!editing && <button className="icon-btn plus" aria-label="Встреча или игра" onClick={() => setSheet('plus')}><Icon name="plus" /></button>}
             <textarea
               ref={input} rows={1} value={text} placeholder="Сообщение"
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px` }}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             />
-            <button className="send" onClick={send} aria-label={editing ? 'Сохранить' : 'Отправить'}><Icon name={editing ? 'check' : 'send'} /></button>
+            <button className="send" onClick={() => send()} aria-label={editing ? 'Сохранить' : 'Отправить'}><Icon name={editing ? 'check' : 'send'} /></button>
           </div>
         </div>
       )}
@@ -264,11 +280,14 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
 
       {report && (
         <Sheet onClose={() => setReport(null)} title="Пожаловаться">
-          <p>Что не так с сообщением от {nickOf(report)}? Модератор разберётся, автор не узнает, кто пожаловался.</p>
+          <p>В учебном прототипе жалоба никому не отправляется. Сообщение будет скрыто на этом устройстве.</p>
           {REASONS.map((r) => <button key={r} className={'opt' + (reason === r ? ' on' : '')} onClick={() => setReason(r)}>{r}</button>)}
-          <button className="btn" disabled={!reason} onClick={sendReport}>Отправить жалобу</button>
+          {reason === 'Другое' && <textarea className="sheet-input" value={reasonDetails} onChange={(e) => setReasonDetails(e.target.value)} placeholder="Что случилось?" maxLength={300} />}
+          <button className="btn" disabled={!reason || (reason === 'Другое' && !reasonDetails.trim())} onClick={sendReport}>Отправить жалобу</button>
+          <button className="btn ghost" onClick={() => { setAiTask({ task: 'complaint', title: 'Разбор жалобы — демо', text: report.text || '' }); setReport(null) }}>Посмотреть разбор ИИ</button>
         </Sheet>
       )}
+      {personalWarning && <Sheet onClose={() => setPersonalWarning(false)} title="Личные данные в чате"><p>Похоже, в сообщении есть телефон или адрес. В групповом чате это смогут увидеть все участники.</p><button className="btn" onClick={() => setPersonalWarning(false)}>Изменить</button><button className="btn ghost" onClick={() => { setPersonalWarning(false); send(true) }}>Всё равно отправить</button></Sheet>}
 
       {confirmDel && (
         <Sheet onClose={() => setConfirmDel(null)} title="Удалить сообщение?">
@@ -284,6 +303,7 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
           <div className="menu-list">
             <button className="menu-item" onClick={() => setSheet('meet')}><Icon name="pin" />Позвать на встречу</button>
             {!isDm && <button className="menu-item" onClick={startGame}><Icon name="game" />Мини-игра «Быстрый счёт»</button>}
+            <button className="menu-item" onClick={() => { setSheet(null); setAiTask({ task: 'summary', title: 'Что я пропустил?', text: list.filter((m) => m.text && !m.hidden).slice(-30).map((m) => `${m.own ? 'Вы' : m.from}: ${m.text}`).join('\n') }) }}><Icon name="chat" />Пересказать чат с ИИ</button>
           </div>
           {!isDm && <p className="sheet-note">В мини-игре участвует кто хочет. За первые места — монеты на оформление профиля. Общего рейтинга нет: итоги видны только в этом раунде.</p>}
         </Sheet>
@@ -304,11 +324,12 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
             <>
               <div className="info-head">
                 <Avatar color={chat.color} text={chat.letter} />
-                <div><b>{chat.title}</b><span>{chat.members} {isChannel ? 'подписчиков' : 'участников'}</span></div>
+                <div><b>{chat.title}</b><span>{isChannel ? `${chat.members} подписчиков` : memberCount(chat.members)}</span></div>
               </div>
               <p style={{ color: 'var(--text)' }}>{chat.about}</p>
               {!isChannel && (
                 <div className="menu-list">
+                  {chat.own && <button className="menu-item" onClick={() => setSheet('invite')}><Icon name="user" />Пригласить участника</button>}
                   <button className="menu-item" onClick={() => setSheet('meet')}><Icon name="pin" />Позвать на встречу</button>
                   <button className="menu-item" onClick={startGame}><Icon name="game" />Мини-игра «Быстрый счёт»</button>
                 </div>
@@ -325,6 +346,7 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
           <button className="btn ghost" onClick={() => setSheet(null)}>Отмена</button>
         </Sheet>
       )}
+      {sheet === 'invite' && <Sheet onClose={() => setSheet('info')} title="Пригласить в группу" tall><p>В демоверсии это вымышленные участники: настоящие приглашения не отправляются.</p>{Object.values(people).filter((person) => person.cls && personState(person.nick) !== 'blocked').map((person) => <button className="row" key={person.nick} disabled={chat.invited?.includes(person.nick)} onClick={() => { onInvite(person.nick); toast(`${person.nick} добавлен в демонстрационную группу`) }}><Avatar p={person} size="sm" /><span className="rt">{person.nick}</span><span className="rv">{chat.invited?.includes(person.nick) ? 'Добавлен' : 'Добавить'}</span></button>)}</Sheet>}
 
       {person && (
         <PersonSheet person={person} state={personState(person.nick)} common={commonInterests(user, person)}
@@ -332,6 +354,7 @@ export default function Chat({ chat, user, list, onBack, onChange, personState, 
           onRequest={() => { writePersonally(person.nick); setPerson(null) }}
           onOpenDm={() => { setPerson(null); onOpenDm(person.nick) }} />
       )}
+      {aiTask && <AiSheet {...aiTask} onClose={() => setAiTask(null)} />}
     </>
   )
 }
@@ -343,9 +366,9 @@ function GameCard({ g, onPlay }) {
       <div className="lbl">🎮 Мини-игра</div>
       <div className="what">{g.title}</div>
       <div className="who">запустил {people[g.by]?.nick || g.by} · 30 секунд на примеры</div>
-      {g.results ? (
+      {g.cancelled ? <span className="who">Раунд завершён без результата</span> : g.results ? (
         <div className="game-results">
-          {g.results.slice(0, 3).map((r, i) => <span key={r.nick}>{['🥇', '🥈', '🥉'][i]} {r.nick} — {r.score}</span>)}
+          <span>Участников: {g.results.length} · Победитель: {g.results[0]?.nick}</span>
           {g.my && <span className="my">Ты: {g.my.place} место{g.my.coins ? ` · +${g.my.coins} 🪙` : ''}</span>}
         </div>
       ) : (
@@ -370,7 +393,8 @@ function QuickMeet({ onClose, onSend }) {
         {TIMES.map((t) => <button key={t} className={'chip' + (time === t ? ' on' : '')} onClick={() => setTime(t)}>{t}</button>)}
       </div>
       <input className="sheet-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Зачем? Например: репетиция" maxLength={40} />
-      <button className="btn" onClick={() => onSend({ place, day, time, note: note.trim() })}>Отправить в чат</button>
+      {!meetingIsFuture(day, time) && <p>Выбери время, которое ещё не прошло.</p>}
+      <button className="btn" disabled={!meetingIsFuture(day, time)} onClick={() => onSend({ place, day, time, at: meetingDate(day, time).toISOString(), note: note.trim() })}>Отправить в чат</button>
     </Sheet>
   )
 }

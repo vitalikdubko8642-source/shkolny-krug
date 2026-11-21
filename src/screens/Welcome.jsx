@@ -13,7 +13,7 @@ export default function Welcome({ onNext }) {
         <div className="facts">
           <div className="fact">
             <div className="dot"><Icon name="school" /></div>
-            <div><b>Для кого</b><span>Ученики 1–11 классов и учителя школы. Посторонним вход закрыт.</span></div>
+            <div><b>Для кого</b><span>Учебный прототип для учеников 1–11 классов и учителей школы.</span></div>
           </div>
           <div className="fact">
             <div className="dot"><Icon name="chat" /></div>
@@ -24,6 +24,8 @@ export default function Welcome({ onNext }) {
             <div><b>Безопасно</b><span>Все видят только твой ник. Личные сообщения — только если вы оба согласны.</span></div>
           </div>
         </div>
+
+        <p className="fine"><b>Правила общения:</b> уважай других, не публикуй личные данные и используй жалобу, если сообщение тебя задело.</p>
 
         <div className="spacer" />
         <button className="btn" onClick={onNext}>Начать</button>

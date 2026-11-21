@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import Avatar, { Nick } from '../components/Avatar.jsx'
-import { people, tour, MAF } from '../data/demo.js'
+import { people, tour } from '../data/demo.js'
 import { commonInterests } from './Friends.jsx'
 
-export default function Tour({ user, personState, onRequest, onDone, fromProfile }) {
+export default function Tour({ user, personState, onRequest, onDone, onFriends, fromProfile }) {
   const [step, setStep] = useState(0)
 
   // Кого предложить: сначала одноклассники с общими интересами, потом остальные
@@ -38,7 +38,7 @@ export default function Tour({ user, personState, onRequest, onDone, fromProfile
       body: (
         <div className="tour-floors">
           <div className="tour-floor"><b>Двор</b>{tour.find((f) => f.title === 'Двор').items.map((i) => <span key={i}>{i}</span>)}</div>
-          <p>{MAF[0].toUpperCase() + MAF.slice(1)} — главное место встреч. Там можно посидеть, спрятаться от дождя и договориться с ребятами. Позвать туда можно кнопкой «+» в любом чате.</p>
+          <p>Позвать на встречу к объекту во дворе можно кнопкой «+» в чате. Место и внешний вид ещё выбираются.</p>
         </div>
       ),
     },
@@ -67,7 +67,7 @@ export default function Tour({ user, personState, onRequest, onDone, fromProfile
                   <b><Nick p={p} /></b>
                   <span>{p.cls}{sameClass && ' · твой класс'}{common.length > 0 && <> · <em>{common.join(', ')}</em></>}</span>
                 </div>
-                {st ? <span className="pending">{st === 'friend' ? 'друзья' : st === 'incoming' ? 'ждёт твоего ответа' : 'запрос отправлен'}</span>
+                {st === 'incoming' ? <button className="mini-btn on" onClick={onFriends}>Ответить</button> : st ? <span className="pending">{st === 'friend' ? 'друзья' : st === 'blocked' ? 'заблокирован' : 'запрос отправлен'}</span>
                   : <button className="mini-btn on" onClick={() => onRequest(p.nick)}>Запрос</button>}
               </div>
             )

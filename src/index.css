@@ -412,7 +412,16 @@ label.inline { flex-direction: row; align-items: center; justify-content: space-
 .seg-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 5px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; }
 .own-tag { font-size: 11px; font-weight: 500; color: var(--accent); margin-left: 6px; }
 .nick-badge { margin-left: 4px; font-size: 0.9em; }
-.toast { cursor: pointer; }
+.toast { cursor: pointer; bottom: auto; top: calc(12px + env(safe-area-inset-top)); pointer-events: none; z-index: 9; }
+.swatches { flex-wrap: nowrap; overflow-x: auto; }
+.swatches .sw { flex: 0 0 auto; }
+input::placeholder, textarea::placeholder { color: var(--text-2); opacity: .68; }
+.seg button { min-width: 0; white-space: nowrap; }
+.scroll-x { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: thin; }
+.scroll-x .chip { flex: 0 0 auto; }
+.tabbar button { font-size: 12px; }
+body { font-size: var(--msg-fs); }
+.btn, .row .rt, .chat-row .title, .mini-btn { font-size: var(--msg-fs); }
 
 /* --- рамки аватара (покупаются за монеты) --- */
 .avatar[class*='frame-'] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4.5px var(--fr, gold); }
