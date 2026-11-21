@@ -228,7 +228,7 @@ body { background: #edf2f5; letter-spacing: -.01em; }
 .own .msg { border-radius: 18px 18px 6px 18px; }
 .send { border-radius: 15px; }
 .sheet { border-radius: 28px 28px 0 0; animation-duration: 380ms; }
-@keyframes section-slide { from { opacity: .35; transform: translateX(24px) scale(.99); } }
+@keyframes section-slide { from { opacity: .35; transform: translateX(var(--section-enter-x, 28px)) scale(.99); } }
 @keyframes selected-pop { 0% { transform: translateY(7px) scale(.7); opacity: .3; } 65% { transform: translateY(-2px) scale(1.12); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .tab-content, .tabbar button.on .tab-icon svg { animation: none !important; }

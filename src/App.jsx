@@ -52,6 +52,10 @@ const initial = {
 
 export default function App() {
   const [s, set] = usePersisted(initial)
+  const previousTab = useRef(s.tab)
+  const tabOrder = ['chats', 'events', 'ideas', 'friends', 'profile']
+  const tabDirection = tabOrder.indexOf(s.tab) < tabOrder.indexOf(previousTab.current) ? -1 : 1
+  useEffect(() => { previousTab.current = s.tab }, [s.tab])
   const stateRef = useRef(s)
   stateRef.current = s
   const [toastText, setToastText] = useState(null)
@@ -269,7 +273,7 @@ export default function App() {
     }
     screen = (
       <>
-        <div className="tab-content" key={s.tab}>{tab}</div>
+        <div className="tab-content" key={s.tab} style={{ '--section-enter-x': `${tabDirection * 28}px` }}>{tab}</div>
         <TabBar tab={s.tab} badges={badges} onTab={(t) => patch((prev) => ({ tab: t, ...(t === 'events' ? { seenAlerts: prev.alerts.map((a) => a.id) } : {}) }))} />
       </>
     )
