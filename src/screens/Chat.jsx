@@ -201,7 +201,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
                       <div className="what">{m.meet.place}</div>
                       <div className="who">{meetingLabel(m.meet)}{m.meet.note ? ` · ${m.meet.note}` : ''}{m.meet.at && new Date(m.meet.at) <= new Date() ? ' · прошла' : ''}</div>
                       <div className="who">идут {m.meet.going + (m.meet.me ? 1 : 0)}</div>
-                      {!m.own && (!m.meet.at || new Date(m.meet.at) > new Date()) && <span role="button" className={'go' + (m.meet.me ? ' on' : '')}
+                      {!m.own && m.meet.at && new Date(m.meet.at) > new Date() && <span role="button" className={'go' + (m.meet.me ? ' on' : '')}
                         onClick={(e) => { e.stopPropagation(); update(m.id, { meet: { ...m.meet, me: !m.meet.me } }) }}>
                         {m.meet.me ? 'Ты идёшь ✓' : 'Я иду'}
                       </span>}

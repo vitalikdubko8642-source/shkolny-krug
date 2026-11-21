@@ -106,7 +106,7 @@ export default function Events({ user, events, alerts, meets, groups, onEvent, o
                   <span>в чате «{x.chatTitle}» · идут {x.meet.going + (x.meet.me ? 1 : 0)}</span>
                 </div>
                 <div className="mr-acts">
-                  {!x.own && (!x.meet.at || new Date(x.meet.at) > new Date()) && <button className={'mini-btn' + (x.meet.me ? ' on' : '')} onClick={() => onMeetGo(x.chatId, x.msgId)}>{x.meet.me ? 'Иду ✓' : 'Я иду'}</button>}
+                  {!x.own && x.meet.at && new Date(x.meet.at) > new Date() && <button className={'mini-btn' + (x.meet.me ? ' on' : '')} onClick={() => onMeetGo(x.chatId, x.msgId)}>{x.meet.me ? 'Иду ✓' : 'Я иду'}</button>}
                   {!isTeacher && <button className="link" onClick={() => onOpenChat(x.chatId)}>в чат</button>}
                 </div>
               </div>

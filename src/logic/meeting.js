@@ -13,7 +13,7 @@ export function meetingIsFuture(day, time) {
 }
 
 export function meetingLabel(meet) {
-  if (!meet.at) return `${meet.day || 'Сегодня'}, ${meet.time}`
+  if (!meet.at) return `Демо-встреча · ${meet.time || 'время не указано'}`
   const date = new Date(meet.at)
   const today = new Date()
   const localDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
