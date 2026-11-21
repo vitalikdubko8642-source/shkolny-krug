@@ -1,0 +1,21 @@
+const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core')
+const assert = require('node:assert/strict')
+;(async () => {
+  const browser = await chromium.launch({ channel: 'msedge', headless: true })
+  const page = await browser.newPage({ viewport: { width: 375, height: 812 }, serviceWorkers: 'block' })
+  page.setDefaultTimeout(15000)
+  page.on('response', async response => { if (response.url().includes('workers.dev')) console.log('AI HTTP', response.status(), (await response.text()).slice(0, 300)) })
+  page.on('requestfailed', request => { if (request.url().includes('workers.dev')) console.log('AI network failure', request.failure()?.errorText) })
+  try {
+    await page.goto('https://vitalikdubko8642-source.github.io/shkolny-krug/', { waitUntil: 'networkidle' }); await page.evaluate(() => localStorage.clear()); await page.reload()
+    await page.getByRole('button', { name: 'Начать', exact: true }).click(); await page.locator('.check input').check(); await page.getByRole('button', { name: 'Дальше', exact: true }).click()
+    await page.getByRole('button', { name: /Заполнить пустые поля/ }).click(); await page.getByRole('button', { name: 'Готово', exact: true }).click(); await page.getByRole('button', { name: 'Пропустить' }).click()
+    await page.locator('.tabbar button', { hasText: 'События' }).click(); await page.getByRole('button', { name: 'Сообщить', exact: true }).click()
+    await page.locator('.sheet input[placeholder^="Или напиши"]').fill('5+5=???'); await page.getByRole('button', { name: 'Двор', exact: true }).click()
+    await page.getByRole('button', { name: 'Проверить с ИИ' }).click(); await page.locator('.sheet .check input').check(); await page.getByRole('button', { name: 'Отправить в ИИ' }).click()
+    await page.locator('.sheet .ai-box b').getByText('Ответ ИИ').waitFor({ timeout: 45000 }); await page.getByRole('button', { name: 'Готово', exact: true }).click()
+    assert.equal(await page.getByRole('button', { name: 'Сохранить демо-сообщение' }).isDisabled(), true)
+    assert.match(await page.locator('.sheet').innerText(), /не распознал/)
+    console.log('Live UI: real AI rejected 5+5 and prevented publication.')
+  } finally { await browser.close() }
+})().catch(e => { console.error(e); process.exitCode = 1 })

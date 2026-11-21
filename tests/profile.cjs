@@ -7,7 +7,7 @@ const assert = require('node:assert/strict')
   const errors = []
   page.on('pageerror', e => errors.push(e.message))
   try {
-    await page.goto('http://127.0.0.1:5190/'); await page.evaluate(() => localStorage.clear()); await page.reload()
+    await page.goto(process.env.TEST_URL || 'http://127.0.0.1:5190/'); await page.evaluate(() => localStorage.clear()); await page.reload()
     await page.getByRole('button', { name: 'Начать', exact: true }).click()
     await page.locator('.check input').check(); await page.getByRole('button', { name: 'Дальше', exact: true }).click()
     await page.getByRole('button', { name: /Заполнить пустые поля/ }).click(); await page.getByRole('button', { name: 'Готово', exact: true }).click(); await page.getByRole('button', { name: 'Пропустить' }).click()

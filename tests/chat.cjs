@@ -12,7 +12,7 @@ const assert = require('node:assert/strict')
     await route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' }, body: JSON.stringify({ answer: 'Ребята обсуждают музыку.' }) })
   })
   try {
-    await page.goto('http://127.0.0.1:5190/'); await page.evaluate(() => localStorage.clear()); await page.reload()
+    await page.goto(process.env.TEST_URL || 'http://127.0.0.1:5190/'); await page.evaluate(() => localStorage.clear()); await page.reload()
     await page.getByRole('button', { name: 'Начать', exact: true }).click()
     await page.locator('.check input').check(); await page.getByRole('button', { name: 'Дальше', exact: true }).click()
     await page.getByRole('button', { name: /Заполнить пустые поля/ }).click()
