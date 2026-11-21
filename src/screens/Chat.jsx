@@ -10,6 +10,7 @@ import { commonInterests } from './Friends.jsx'
 import { now } from '../store.js'
 import { meetingDate, meetingIsFuture, meetingLabel } from '../logic/meeting.js'
 import AiSheet from '../components/AiSheet.jsx'
+import { hasPersonalData } from '../logic/personal.js'
 
 const REASONS = ['Меня это задело', 'Оскорбляют кого-то', 'Спам или реклама', 'Делятся чужими личными данными', 'Другое']
 const REACTIONS = ['👍', '❤️', '😂', '🔥', '😮', '😢']
@@ -72,7 +73,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
   const send = (confirmed = false) => {
     const t = text.trim()
     if (!t) { if (editing) toast('Пустое сообщение нельзя сохранить. Можно удалить его через меню.') ; return }
-    if (!isDm && !confirmed && (/(?:\+?7|8)[\s()\-]*\d(?:[\s()\-]*\d){9}/.test(t) || /(?:^|\s)(?:ул\.|улица|проспект|переулок)\s+\S+/i.test(t))) { setPersonalWarning(true); return }
+    if (!isDm && !confirmed && hasPersonalData(t)) { setPersonalWarning(true); return }
     if (editing) {
       update(editing.id, { text: t, edited: true })
       setEditing(null); setText('')

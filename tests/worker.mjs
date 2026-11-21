@@ -12,6 +12,11 @@ const response = await worker.fetch(request({ task: 'summary', text: 'Приве
 assert.equal(response.status, 200)
 assert.equal((await response.json()).answer, 'Краткий ответ')
 assert.equal(calls, 1)
+const classifier = { ...env, AI: { run: async () => ({ choices: [{ message: { content: '{"decision":"reject","reason":"Это не школьная проблема"}' } }] }) } }
+const verdict = await worker.fetch(request({ task: 'alert', text: '5+5=??? · Двор' }), classifier)
+assert.equal((await verdict.json()).decision, 'reject')
+const invalidClassifier = { ...env, AI: { run: async () => ({ choices: [{ message: { content: 'непонятный ответ' } }] }) } }
+assert.equal((await worker.fetch(request({ task: 'alert', text: 'Пример' }), invalidClassifier)).status, 503)
 const limited = { ...env, RATE_LIMIT: { limit: async () => ({ success: false }) } }
 assert.equal((await worker.fetch(request({ task: 'summary', text: 'Тест' }), limited)).status, 429)
 console.log('Worker: origin, task, input length, AI response shape and rate limiting passed.')

@@ -3,7 +3,7 @@ import Sheet from './Sheet.jsx'
 
 const ENDPOINT = 'https://shkolny-krug-ai.okla-school-8642.workers.dev'
 
-export default function AiSheet({ task, title, text, onClose }) {
+export default function AiSheet({ task, title, text, onClose, onDecision }) {
   const [busy, setBusy] = useState(false)
   const [answer, setAnswer] = useState('')
   const [error, setError] = useState('')
@@ -11,7 +11,8 @@ export default function AiSheet({ task, title, text, onClose }) {
   const aborter = useRef(null)
   const close = () => { aborter.current?.abort(); onClose() }
   const run = async () => {
-    setBusy(true); setError('')
+    setBusy(true); setError(''); setAnswer('')
+    if (task === 'alert') onDecision?.(null)
     const controller = new AbortController()
     aborter.current = controller
     let timedOut = false
@@ -21,6 +22,7 @@ export default function AiSheet({ task, title, text, onClose }) {
       const data = await response.json()
       if (!response.ok || !data.answer) throw new Error(data.error || 'Не удалось получить ответ')
       setAnswer(data.answer)
+      if (task === 'alert' && ['allow', 'reject', 'urgent'].includes(data.decision)) onDecision?.(data.decision)
     } catch (e) { if (timedOut) setError('ИИ отвечает слишком долго. Попробуй позже.'); else if (e.name !== 'AbortError') setError('ИИ недоступен. Проверь соединение и попробуй позже.') }
     finally { clearTimeout(timeout); if (!controller.signal.aborted || timedOut) setBusy(false) }
   }
@@ -31,5 +33,6 @@ export default function AiSheet({ task, title, text, onClose }) {
     {error && <p className="err">{error}</p>}
     {answer && <div className="ai-box"><b>Ответ ИИ</b><span style={{ whiteSpace: 'pre-wrap' }}>{answer}</span><small>ИИ может ошибаться. Результат никуда не отправлен и не заменяет решение человека.</small></div>}
     <button className="btn" disabled={!agreed || busy || !text.trim()} onClick={run}>{busy ? 'Обрабатываю…' : answer ? 'Попробовать ещё раз' : 'Отправить в ИИ'}</button>
+    <button className="btn ghost" onClick={close}>{answer ? 'Готово' : 'Закрыть'}</button>
   </Sheet>
 }

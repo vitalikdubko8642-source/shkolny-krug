@@ -5,6 +5,7 @@ import Icon from '../components/Icon.jsx'
 import Avatar, { Nick } from '../components/Avatar.jsx'
 import ProfileCard from '../components/ProfileCard.jsx'
 import Sheet from '../components/Sheet.jsx'
+import { hasPersonalData } from '../logic/personal.js'
 import { INTERESTS } from './Register.jsx'
 import { shop, people } from '../data/demo.js'
 
@@ -104,7 +105,7 @@ function MePage({ user, settings, onUser, onBack }) {
   const [pendingPersonal, setPendingPersonal] = useState(null)
   const savePublic = (key, value) => {
     if (value === (user[key] || '')) return
-    if (/(?:\+?7|8)[\s()-]*\d(?:[\s()-]*\d){9}/.test(value) || /(?:^|\s)(?:ул\.|улица|проспект|переулок)\s+\S+/i.test(value)) setPendingPersonal({ key, value })
+    if (hasPersonalData(value)) setPendingPersonal({ key, value })
     else onUser({ [key]: value })
   }
   const validNick = (value) => /^[a-zA-Z0-9_.]{3,20}$/.test(value) && !Object.keys(people).some((n) => n.toLowerCase() === value.toLowerCase())
@@ -148,6 +149,7 @@ function MePage({ user, settings, onUser, onBack }) {
       <p className="group-title">О себе</p>
       <div className="group pad">
         <textarea className="field-in" rows={3} maxLength={120} value={bio} placeholder="Пару слов о себе: что любишь, чем занимаешься" onChange={(e) => setBio(e.target.value)} onBlur={() => savePublic('bio', bio)} />
+        {hasPersonalData(bio) && <p className="err">Похоже, здесь номер телефона или адрес. Профиль виден другим.</p>}
         <div className="counter">{bio.length}/120</div>
       </div>
 
