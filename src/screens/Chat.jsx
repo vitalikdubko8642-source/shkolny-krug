@@ -11,7 +11,7 @@ import { now } from '../store.js'
 import { meetingDate, meetingIsFuture, meetingLabel } from '../logic/meeting.js'
 import AiSheet from '../components/AiSheet.jsx'
 import { hasPersonalData } from '../logic/personal.js'
-import { Mic, Smile } from 'lucide-react'
+import { Smile } from 'lucide-react'
 import Recorder from '../components/Recorder.jsx'
 import MediaMessage from '../components/MediaMessage.jsx'
 import { deleteRecording } from '../mediaStore.js'
@@ -259,7 +259,6 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
         <div className="composer readonly">Здесь пишет только школа</div>
       ) : (
         <div className="composer-wrap">
-          {recordingOpen && <Recorder onClose={() => setRecordingOpen(false)} onSend={sendMedia} />}
           {emojiOpen && !recordingOpen && <div className="emoji-picker" role="region" aria-label="Выбор эмодзи"><div className="emoji-picker-head"><b>Эмодзи</b><button onClick={() => setEmojiOpen(false)} aria-label="Закрыть эмодзи"><Icon name="x" /></button></div><div className="emoji-grid">{EMOJI.map(e => <button key={e} aria-label={`Добавить ${e}`} onClick={() => insertEmoji(e)}>{e}</button>)}</div></div>}
           {(reply || editing) && (
             <div className="compose-bar">
@@ -279,7 +278,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
               onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px` }}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             />
-            {text.trim() || editing ? <button className="send" onClick={() => send()} aria-label={editing ? 'Сохранить' : 'Отправить'}><Icon name={editing ? 'check' : 'send'} /></button> : <button className="send" onClick={() => { setEmojiOpen(false); setRecordingOpen(true) }} aria-label="Записать голосовое или видеокружок"><Mic size={22} /></button>}
+            {text.trim() || editing ? <button className="send" onClick={() => send()} aria-label={editing ? 'Сохранить' : 'Отправить'}><Icon name={editing ? 'check' : 'send'} /></button> : <Recorder onSend={sendMedia} toast={toast} onActive={(active) => { setRecordingOpen(active); if (active) setEmojiOpen(false) }} />}
           </div>
         </div>
       )}
