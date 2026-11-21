@@ -1,0 +1,26 @@
+const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core')
+const assert = require('node:assert/strict')
+;(async () => {
+  const browser = await chromium.launch({ channel: 'msedge', headless: true })
+  const page = await browser.newPage({ viewport: { width: 375, height: 812 }, serviceWorkers: 'block' })
+  page.setDefaultTimeout(15000)
+  const errors = []
+  page.on('pageerror', e => errors.push(e.message))
+  try {
+    await page.goto('https://vitalikdubko8642-source.github.io/shkolny-krug/', { waitUntil: 'networkidle' })
+    await page.evaluate(() => localStorage.clear()); await page.reload({ waitUntil: 'networkidle' })
+    assert.match(await page.locator('body').innerText(), /Правила общения/)
+    await page.getByRole('button', { name: 'Начать', exact: true }).click()
+    await page.locator('.check input').check(); await page.getByRole('button', { name: 'Дальше', exact: true }).click()
+    await page.getByRole('button', { name: /Заполнить пустые поля/ }).click(); await page.getByRole('button', { name: 'Готово', exact: true }).click(); await page.getByRole('button', { name: 'Пропустить' }).click()
+    await page.locator('.tabbar button', { hasText: 'Чаты' }).click()
+    await page.locator('.chat-row').filter({ hasText: 'Гитара и музыка' }).first().click()
+    await page.locator('button.plus').click(); await page.getByRole('button', { name: 'Пересказать чат с ИИ' }).click()
+    await page.locator('.sheet .check input').check()
+    await page.getByRole('button', { name: 'Отправить в ИИ' }).click()
+    await page.locator('.sheet .ai-box b').getByText('Ответ ИИ').waitFor({ timeout: 45000 })
+    assert.ok((await page.locator('.sheet .ai-box').innerText()).length > 15)
+    assert.deepEqual(errors, [])
+    console.log('Live Pages: onboarding, chat and real AI response passed.')
+  } finally { await browser.close() }
+})().catch(e => { console.error(e); process.exitCode = 1 })
