@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
   try {
     for (const reducedMotion of ['no-preference', 'reduce']) {
       const page = await browser.newPage({ viewport: { width: 390, height: 812 }, reducedMotion })
-      await page.goto('http://127.0.0.1:5190/')
+      await page.goto(process.env.TEST_URL || 'http://127.0.0.1:5190/')
       await page.evaluate(() => localStorage.setItem('shkolny-krug-v3', JSON.stringify({ stage:'main', user:{nick:'new_hero',cls:'9Б',role:'student',interests:[],color:'#2F80ED',coins:50,owned:[]},tab:'chats' })))
       await page.reload()
       const indicator = page.locator('.tab-indicator')
