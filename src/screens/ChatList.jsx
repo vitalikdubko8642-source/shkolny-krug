@@ -38,8 +38,9 @@ export default function ChatList({ user, chats, messages, unread, alerts, onOpen
 
   return (
     <>
-      <div className="topbar">
-        <h1>Школьный круг</h1>
+      <div className="topbar chat-list-header">
+        <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
+        <div className="brand-heading"><h1>Школьный круг</h1><span>Общение начинается здесь</span></div>
       </div>
       {alert && (
         <button className="alert-banner" onClick={onGoEvents}>

@@ -51,7 +51,7 @@ export default function Events({ user, events, alerts, meets, groups, onEvent, o
                 {a.confirmed ? '✓ Тоже вижу' : 'Тоже вижу'} · {a.confirms + (a.confirmed ? 1 : 0)}
               </button>
               <button onClick={() => onAlertAct(a.id, 'resolve')}>{a.own ? 'Уже исправили' : `${a.resolveVoted ? '✓ ' : ''}Исправили · ${(a.resolveVotes || 0) + (a.resolveVoted ? 1 : 0)}/3`}</button>
-              {!a.own && <button onClick={() => { setReportAlert(a.id); setReportReason('') }}>Пожаловаться</button>}
+              {!a.own && <button aria-label="Пожаловаться на сообщение" onClick={() => { setReportAlert(a.id); setReportReason('') }}>Жалоба</button>}
             </div>
           </div>
         ))}
@@ -70,12 +70,12 @@ export default function Events({ user, events, alerts, meets, groups, onEvent, o
               const sp = e.spectators + (e.me === 'spectator' ? 1 : 0)
               const pa = e.participants + (e.me === 'participant' ? 1 : 0)
               return (
-              <button key={e.id} className="event-card" onClick={() => setOpen(e)}>
-                <div className="date-box" style={{ background: kindColor[e.kind] }}>
+              <button key={e.id} className="event-card" style={{ '--event-color': kindColor[e.kind] }} onClick={() => setOpen(e)}>
+                <div className="date-box">
                   <b>{e.day}</b><span>{e.month}</span>
                 </div>
                 <div className="ev-body">
-                  <span className="ev-kind" style={{ color: kindColor[e.kind] }}>{e.kind}</span>
+                  <span className="ev-kind">{e.kind}</span>
                   <b>{e.title}</b>
                   <span className="ev-line">{e.weekday}, {e.time} · {e.place}</span>
                   <span className="ev-line">

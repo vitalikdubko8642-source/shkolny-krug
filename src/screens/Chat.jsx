@@ -198,7 +198,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
 
                   {m.meet ? (
                     <>
-                      <div className="lbl">Встреча</div>
+                      <div className="meet-heading"><span className="meet-symbol"><Icon name="pin" /></span><span className="lbl">Встреча</span></div>
                       <div className="what">{m.meet.place}</div>
                       <div className="who">{meetingLabel(m.meet)}{m.meet.note ? ` · ${m.meet.note}` : ''}{m.meet.at && new Date(m.meet.at) <= new Date() ? ' · прошла' : ''}</div>
                       <div className="who">идут {m.meet.going + (m.meet.me ? 1 : 0)}</div>
@@ -364,7 +364,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
 function GameCard({ g, onPlay }) {
   return (
     <>
-      <div className="lbl">🎮 Мини-игра</div>
+      <div className="meet-heading"><span className="meet-symbol"><Icon name="game" /></span><span className="lbl">Мини-игра</span></div>
       <div className="what">{g.title}</div>
       <div className="who">запустил {people[g.by]?.nick || g.by} · 30 секунд на примеры</div>
       {g.cancelled ? <span className="who">Раунд завершён без результата</span> : g.results ? (
