@@ -11,9 +11,14 @@ import { now } from '../store.js'
 import { meetingDate, meetingIsFuture, meetingLabel } from '../logic/meeting.js'
 import AiSheet from '../components/AiSheet.jsx'
 import { hasPersonalData } from '../logic/personal.js'
+import { Mic, Smile } from 'lucide-react'
+import Recorder from '../components/Recorder.jsx'
+import MediaMessage from '../components/MediaMessage.jsx'
+import { deleteRecording } from '../mediaStore.js'
 
 const REASONS = ['Меня это задело', 'Оскорбляют кого-то', 'Спам или реклама', 'Делятся чужими личными данными', 'Другое']
 const REACTIONS = ['👍', '❤️', '😂', '🔥', '😮', '😢']
+const EMOJI = ['😀','😃','😄','😁','😆','😅','😂','🤣','🙂','🙃','😉','😊','😍','🥰','😘','😎','🤩','🥳','😏','😒','😔','😢','😭','😤','😡','🤔','🤨','😮','😱','🤯','😴','🤝','👍','👎','👌','✌️','🤞','👏','🙌','🫶','💪','👀','❤️','🧡','💛','💚','💙','💜','🖤','💔','💯','✨','🔥','🎉','🎶','⚽','🎮','🚀','💡','✅']
 const TIMES = ['13:30', '14:30', '15:00', '16:00', '17:00']
 const memberCount = (n) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'участник' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'участника' : 'участников'}`
 const messageDate = (m) => m.createdAt ? new Date(m.createdAt).toLocaleDateString('ru-RU') : 'Демо-сообщения'
@@ -27,6 +32,8 @@ const messageDay = (m) => !m.createdAt ? 'Демо-сообщения' : message
 // list — сообщения чата; onChange(fn) — изменить их (fn получает старый список).
 export default function Chat({ chat, user, settings, list, onBack, onChange, personState, onRequest, onOpenDm, onBlock, onInvite, onGameFinish, toast }) {
   const [text, setText] = useState('')
+  const [emojiOpen, setEmojiOpen] = useState(false)
+  const [recordingOpen, setRecordingOpen] = useState(false)
   const [typing, setTyping] = useState(null)
   const [menu, setMenu] = useState(null)       // сообщение, по которому нажали
   const [report, setReport] = useState(null)   // на что жалуемся
@@ -51,7 +58,20 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
 
   const update = (id, p) => onChange((l) => l.map((m) => (m.id === id ? { ...m, ...p } : m)))
   const nickOf = (m) => (m.own ? user.nick : people[m.from]?.nick || m.from)
-  const preview = (m) => (m.meet ? `Встреча: ${m.meet.place}, ${m.meet.time}` : m.game ? `Мини-игра «${m.game.title}»` : m.text)
+  const preview = (m) => (m.media ? (m.media.kind === 'audio' ? 'Голосовое сообщение' : 'Видеокружок') : m.meet ? `Встреча: ${m.meet.place}, ${m.meet.time}` : m.game ? `Мини-игра «${m.game.title}»` : m.text)
+
+  const insertEmoji = (emoji) => {
+    const element = input.current
+    const start = element?.selectionStart ?? text.length, end = element?.selectionEnd ?? text.length
+    setText(text.slice(0, start) + emoji + text.slice(end))
+    requestAnimationFrame(() => { element?.focus(); element?.setSelectionRange(start + emoji.length, start + emoji.length) })
+  }
+
+  const sendMedia = (media) => {
+    const r = reply && { nick: nickOf(reply), text: preview(reply) }
+    onChange(l => [...l, { id: 'u' + Date.now(), from: user.nick, own: true, text: '', time: now(), createdAt: new Date().toISOString(), reply: r, media }])
+    setReply(null); setRecordingOpen(false)
+  }
 
   // Кто-нибудь из (выдуманных) ребят отвечает через пару секунд
   const botAnswer = (message = '') => {
@@ -137,8 +157,8 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
 
   const canDm = (m) => !isChannel && !isDm && !m.own && people[m.from]?.cls
   const actions = menu && (menu.own
-    ? [['reply', 'reply', 'Ответить'], !menu.meet && !menu.game && ['edit', 'edit', 'Изменить'], ['copy', 'copy', 'Копировать'], ['delete', 'trash', 'Удалить', true]]
-    : [!isChannel && ['reply', 'reply', 'Ответить'], ['copy', 'copy', 'Копировать'], canDm(menu) && ['dm', 'mail', 'Написать лично'], ['hide', 'eyeoff', 'Скрыть'], ['report', 'flag', 'Пожаловаться', true]]
+    ? [['reply', 'reply', 'Ответить'], !menu.meet && !menu.game && !menu.media && ['edit', 'edit', 'Изменить'], !menu.media && ['copy', 'copy', 'Копировать'], ['delete', 'trash', 'Удалить', true]]
+    : [!isChannel && ['reply', 'reply', 'Ответить'], !menu.media && ['copy', 'copy', 'Копировать'], canDm(menu) && ['dm', 'mail', 'Написать лично'], ['hide', 'eyeoff', 'Скрыть'], ['report', 'flag', 'Пожаловаться', true]]
   ).filter(Boolean)
 
   const gameMsg = game && list.find((m) => m.id === game.msgId)
@@ -175,6 +195,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
         {list.map((m, index) => {
           const p = people[m.from]
           const reacts = Object.entries(m.reactions || {})
+          const MessageElement = m.media ? 'div' : 'button'
           return (
             <Fragment key={m.id}>
             {(index === 0 || messageDate(list[index - 1]) !== messageDate(m)) && <div className="day">{messageDay(m)}</div>}
@@ -187,7 +208,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
                   </div>
                 </div>
               ) : (
-                <button className={'msg' + (m.meet || m.game ? ' meet' : '') + (menu?.id === m.id ? ' pressed' : '')} onClick={() => setMenu(m)}>
+                <MessageElement className={'msg' + (m.media ? ' media-bubble' : '') + (m.meet || m.game ? ' meet' : '') + (menu?.id === m.id ? ' pressed' : '')} role={m.media ? 'button' : undefined} tabIndex={m.media ? 0 : undefined} onKeyDown={m.media ? (e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setMenu(m) } } : undefined} onClick={() => setMenu(m)}>
                   {!m.own && !isChannel && !isDm && (
                     <span role="button" className="from" style={{ color: p?.nickColor || p?.color }}
                       onClick={(e) => { if (p?.cls) { e.stopPropagation(); setPerson(p) } }}>
@@ -196,7 +217,9 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
                   )}
                   {m.reply && <div className="quote"><b>{m.reply.nick}</b><span>{m.reply.text}</span></div>}
 
-                  {m.meet ? (
+                  {m.media && <button className="media-menu" aria-label="Действия с записью" onClick={(e) => { e.stopPropagation(); setMenu(m) }}><Icon name="more" /></button>}
+
+                  {m.media ? <MediaMessage media={m.media} /> : m.meet ? (
                     <>
                       <div className="meet-heading"><span className="meet-symbol"><Icon name="pin" /></span><span className="lbl">Встреча</span></div>
                       <div className="what">{m.meet.place}</div>
@@ -223,7 +246,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
                     </div>
                   )}
                   <div className="meta"><span className="tm">{m.edited && 'изменено '}{m.time}{m.own && isDm && ' ✓✓'}</span></div>
-                </button>
+                </MessageElement>
               )}
             </div>
             </Fragment>
@@ -236,6 +259,8 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
         <div className="composer readonly">Здесь пишет только школа</div>
       ) : (
         <div className="composer-wrap">
+          {recordingOpen && <Recorder onClose={() => setRecordingOpen(false)} onSend={sendMedia} />}
+          {emojiOpen && !recordingOpen && <div className="emoji-picker" role="region" aria-label="Выбор эмодзи"><div className="emoji-picker-head"><b>Эмодзи</b><button onClick={() => setEmojiOpen(false)} aria-label="Закрыть эмодзи"><Icon name="x" /></button></div><div className="emoji-grid">{EMOJI.map(e => <button key={e} aria-label={`Добавить ${e}`} onClick={() => insertEmoji(e)}>{e}</button>)}</div></div>}
           {(reply || editing) && (
             <div className="compose-bar">
               <Icon name={editing ? 'edit' : 'reply'} />
@@ -248,12 +273,13 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
           )}
           <div className="composer">
             {!editing && <button className="icon-btn plus" aria-label="Встреча или игра" onClick={() => setSheet('plus')}><Icon name="plus" /></button>}
+            <button className="icon-btn emoji-toggle" aria-label="Эмодзи" aria-expanded={emojiOpen} onClick={() => { setEmojiOpen(!emojiOpen); setRecordingOpen(false) }}><Smile size={22} /></button>
             <textarea
               ref={input} rows={1} value={text} placeholder="Сообщение"
               onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px` }}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             />
-            <button className="send" onClick={() => send()} aria-label={editing ? 'Сохранить' : 'Отправить'}><Icon name={editing ? 'check' : 'send'} /></button>
+            {text.trim() || editing ? <button className="send" onClick={() => send()} aria-label={editing ? 'Сохранить' : 'Отправить'}><Icon name={editing ? 'check' : 'send'} /></button> : <button className="send" onClick={() => { setEmojiOpen(false); setRecordingOpen(true) }} aria-label="Записать голосовое или видеокружок"><Mic size={22} /></button>}
           </div>
         </div>
       )}
@@ -292,8 +318,8 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
 
       {confirmDel && (
         <Sheet onClose={() => setConfirmDel(null)} title="Удалить сообщение?">
-          <p>Оно пропадёт у всех участников чата.</p>
-          <button className="btn danger" onClick={() => { onChange((l) => l.filter((x) => x.id !== confirmDel.id)); setConfirmDel(null) }}>Удалить</button>
+          <p>В демоверсии оно удалится из этого браузера.</p>
+          <button className="btn danger" onClick={async () => { if (confirmDel.media) { try { await deleteRecording(confirmDel.media.id) } catch { toast('Не удалось удалить запись. Попробуй ещё раз.'); return } }; onChange((l) => l.filter((x) => x.id !== confirmDel.id)); setConfirmDel(null) }}>Удалить</button>
           <button className="btn ghost" onClick={() => setConfirmDel(null)}>Отмена</button>
         </Sheet>
       )}

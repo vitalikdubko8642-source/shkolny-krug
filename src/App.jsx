@@ -15,6 +15,7 @@ import Ideas from './screens/Ideas.jsx'
 import Friends from './screens/Friends.jsx'
 import Profile from './screens/Profile.jsx'
 import TabBar from './components/TabBar.jsx'
+import { clearRecordings } from './mediaStore.js'
 
 export const defaultSettings = {
   theme: 'classic',     // classic | dark | clean
@@ -292,7 +293,7 @@ export default function App() {
         onSettings={setSettings}
         onRole={a.role}
         onTour={() => patch({ tourOpen: true })}
-        onReset={() => { reset(); location.reload() }}
+        onReset={async () => { try { await clearRecordings() } catch { toast('Не удалось очистить записи. Попробуй ещё раз.'); return }; reset(); location.reload() }}
       />
     )
   }

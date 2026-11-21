@@ -64,7 +64,7 @@ export default function ChatList({ user, chats, messages, unread, alerts, onOpen
         {list.map(({ c, msgs }) => {
           const last = msgs[msgs.length - 1]
           const who = last && (last.own ? 'Вы' : c.type === 'channel' || c.type === 'dm' ? null : people[last.from]?.nick)
-          const text = last ? (last.hidden ? 'Сообщение скрыто' : last.meet ? `📍 Встреча: ${last.meet.place}, ${last.meet.time}` : last.game ? `🎮 ${last.game.title}` : last.text) : (c.type === 'dm' ? 'Напиши первым 👋' : 'Пока тихо')
+          const text = last ? (last.hidden ? 'Сообщение скрыто' : last.media ? (last.media.kind === 'audio' ? 'Голосовое сообщение' : 'Видеокружок') : last.meet ? `📍 Встреча: ${last.meet.place}, ${last.meet.time}` : last.game ? `🎮 ${last.game.title}` : last.text) : (c.type === 'dm' ? 'Напиши первым 👋' : 'Пока тихо')
           const p = c.type === 'dm' ? people[c.nick] : null
           return (
             <button key={c.id} className="chat-row" onClick={() => onOpen(c.id)}>
