@@ -269,7 +269,7 @@ export default function App() {
     }
     screen = (
       <>
-        {tab}
+        <div className="tab-content" key={s.tab}>{tab}</div>
         <TabBar tab={s.tab} badges={badges} onTab={(t) => patch((prev) => ({ tab: t, ...(t === 'events' ? { seenAlerts: prev.alerts.map((a) => a.id) } : {}) }))} />
       </>
     )

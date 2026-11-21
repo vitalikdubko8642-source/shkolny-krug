@@ -1,0 +1,16 @@
+const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core')
+const path = require('node:path')
+;(async () => {
+  const browser = await chromium.launch({ channel: 'msedge', headless: true })
+  const page = await browser.newPage({ viewport: { width: 390, height: 812 } })
+  const out = process.env.SHOT_DIR || process.env.TEMP
+  await page.goto('http://127.0.0.1:5190/')
+  await page.evaluate(() => localStorage.setItem('shkolny-krug-v3', JSON.stringify({ stage: 'main', user: { name: 'Тестов Тест', phone: '+79000000000', nick: 'new_hero', cls: '9Б', role: 'student', interests: [], color: '#2F80ED', coins: 50, owned: [] }, tab: 'chats' })))
+  await page.reload(); await page.waitForTimeout(600)
+  await page.screenshot({ path: path.join(out, 'anim-00.png') })
+  await page.locator('.tabbar button', { hasText: 'События' }).click()
+  for (let i = 1; i <= 9; i++) await page.screenshot({ path: path.join(out, `anim-${String(i).padStart(2, '0')}.png`) })
+  await page.screenshot({ path: path.join(out, 'anim-10.png') })
+  await browser.close()
+  console.log('Captured actual navigation frames.')
+})().catch(e => { console.error(e); process.exitCode = 1 })
