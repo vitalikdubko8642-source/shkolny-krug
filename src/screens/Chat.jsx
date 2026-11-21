@@ -56,7 +56,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
   // Кто-нибудь из (выдуманных) ребят отвечает через пару секунд
   const botAnswer = (message = '') => {
     if (!isDm && ((chat.own && !chat.invited?.length) || chat.id.startsWith('class:') || chat.id.startsWith('parallel:'))) return
-    if (/(?:\+?7|8)[\s()-]*\d(?:[\s()-]*\d){9}|(?:^|\s)(?:ул\.|улица|проспект|переулок)\s+\S+|дурак|урод|травл/i.test(message)) return
+    if (hasPersonalData(message) || /дурак|урод|травл/i.test(message)) return
     let who, phrase
     if (isDm) { who = chat.nick; phrase = dmReplies } else {
       const nicks = [...new Set([...list.filter((m) => !m.own && people[m.from]?.cls).map((m) => m.from), ...(chat.invited || [])])]
