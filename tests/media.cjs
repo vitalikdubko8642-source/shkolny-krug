@@ -16,7 +16,16 @@ const path = require('node:path')
   await page.addInitScript(() => {
     const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
     window.testStreams = []
-    navigator.mediaDevices.getUserMedia = async (...args) => { const stream = await original(...args); window.testStreams.push(stream); return stream }
+    navigator.mediaDevices.getUserMedia = async (...args) => {
+      if (args[0].video?.facingMode?.exact) args[0].video.facingMode = 'user'
+      const stream = await original(...args)
+      for (const track of stream.getVideoTracks()) {
+        const capabilities = track.getCapabilities.bind(track)
+        track.getCapabilities = () => ({ ...capabilities(), torch: true })
+        track.applyConstraints = async () => {}
+      }
+      window.testStreams.push(stream); return stream
+    }
   })
   page.setDefaultTimeout(10000)
   const errors = []
@@ -46,6 +55,13 @@ const path = require('node:path')
       await hold()
       await page.locator('.recording-dot').waitFor()
       if (kind === 'video') await page.locator('video[aria-label="Предпросмотр камеры"]').waitFor()
+      if (kind === 'video') {
+        await page.getByRole('button', { name: 'Включить вспышку' }).evaluate(el => el.click())
+        await page.getByRole('button', { name: 'Выключить вспышку' }).waitFor()
+        await page.getByRole('button', { name: 'Переключить камеру' }).evaluate(el => el.click())
+        await page.getByText('Основная', { exact: true }).waitFor()
+        await page.getByRole('button', { name: 'Включить вспышку' }).waitFor()
+      }
       await page.waitForTimeout(kind === 'video' ? 3000 : 1200)
       await page.screenshot({ path: path.join(os.tmpdir(), `circle-recording-${kind}.png`) })
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })

@@ -9,9 +9,9 @@ async function api(action, data) {
   return { status: r.status, data: await r.json() }
 }
 ;(async () => {
-  const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] })
+  const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] })
   try {
-    const contexts = await Promise.all([320, 390].map(width => browser.newContext({ viewport: { width, height: 840 } })))
+    const contexts = await Promise.all([320, 390].map(width => browser.newContext({ viewport: { width, height: 840 }, permissions: ['camera', 'microphone'] })))
     const pages = await Promise.all(contexts.map(c => c.newPage()))
     const errors = []
     for (const p of pages) p.on('pageerror', e => errors.push(e.message))
@@ -69,6 +69,23 @@ async function api(action, data) {
     await pages[1].getByText('У навеса во дворе', { exact: true }).waitFor({ timeout: 12000 })
     await pages[1].getByRole('button', { name: 'Я иду', exact: true }).click()
     await pages[0].getByText('Идут: 2', { exact: true }).waitFor({ timeout: 12000 })
+    const trigger = pages[0].locator('.record-trigger')
+    await trigger.hover(); await pages[0].mouse.down(); await pages[0].waitForTimeout(1800); await pages[0].mouse.up()
+    await pages[0].getByRole('button', { name: 'Отправить запись' }).click()
+    await pages[1].getByRole('button', { name: 'Загрузить голосовое', exact: true }).waitFor({ timeout: 12000 })
+    await pages[1].getByRole('button', { name: 'Загрузить голосовое', exact: true }).click()
+    await pages[1].getByRole('button', { name: 'Воспроизвести голосовое', exact: true }).waitFor()
+    await pages[1].getByRole('button', { name: 'Воспроизвести голосовое', exact: true }).click()
+    assert.equal(await pages[1].locator('.jury-file audio').evaluate(el => el.paused), false)
+    await trigger.click()
+    await trigger.hover(); await pages[0].mouse.down(); await pages[0].waitForTimeout(3000); await pages[0].mouse.up()
+    await pages[0].getByRole('button', { name: 'Отправить запись' }).click()
+    try { await pages[1].getByRole('button', { name: 'Загрузить видеосообщение', exact: true }).waitFor({ timeout: 12000 }) }
+    catch (error) { console.error('Sender:', (await pages[0].locator('body').innerText()).slice(-1200)); throw error }
+    await pages[1].getByRole('button', { name: 'Загрузить видеосообщение', exact: true }).click()
+    await pages[1].getByRole('button', { name: 'Воспроизвести видео', exact: true }).waitFor()
+    await pages[1].getByRole('button', { name: 'Воспроизвести видео', exact: true }).click()
+    assert.equal(await pages[1].locator('.jury-file video').evaluate(el => el.paused), false)
     await pages[0].reload()
     await pages[0].getByText('Всё отлично видно!', { exact: true }).waitFor({ timeout: 12000 })
     const other = await api('create', { nick: 'outside' })
@@ -76,7 +93,7 @@ async function api(action, data) {
     assert.deepEqual(outsider.data.messages, [])
     const ownSession = await pages[0].evaluate(() => JSON.parse(localStorage.getItem('shkolny-krug-jury-profile-v1')))
     const ownRoom = await api('poll', { token: ownSession.token, since: 0 })
-    assert.equal(ownRoom.data.attachments.length, 1)
+    assert.equal(ownRoom.data.attachments.length, 3)
     assert.equal((await api('attachment-get', { token: other.data.token, id: ownRoom.data.attachments[0].id })).status, 404)
     assert.equal((await api('attachment', { token: ownSession.token, name: 'file.html', mime: 'text/html', data: 'YQ==' })).status, 400)
     assert.deepEqual(errors, [])

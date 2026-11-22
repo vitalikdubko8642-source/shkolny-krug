@@ -545,6 +545,10 @@ body { background: #edf2f5; letter-spacing: -.01em; }
 .channel-comment b { color: var(--accent); font-size: 13px; }
 .jury-message { cursor: pointer; }
 .jury-emoji-picker { position: static; flex: none; max-height: 190px; overflow: auto; }
+.camera-controls { position: absolute; left: 18px; right: 18px; bottom: 84px; display: flex; align-items: center; gap: 8px; color: white; pointer-events: auto; }
+.camera-controls button { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; background: rgba(20,32,45,.85); color: white; }
+.camera-controls button:disabled { opacity: .4; }
+.camera-controls span { font-size: 12px; color: white; flex: 1; }
 .group { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 18px; }
 .row { min-height: 60px; }
 .row .ri { border-radius: 12px; }

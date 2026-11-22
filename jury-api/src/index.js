@@ -6,7 +6,7 @@ const places = ['У навеса во дворе', 'У главного вход
 const meetingPrefix = '::MEET::'
 const filePrefix = '::FILE::'
 const fileMaxBytes = 1024 * 1024
-const fileTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain', 'application/zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
+const fileTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'audio/webm', 'audio/mp4', 'audio/ogg', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain', 'application/zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
 const sensitive = /(?:\+?\d[\d\s()-]{5,}\d)|[\w.+-]+@[\w.-]+\.[a-zа-яё]{2,}|https?:\/\/|(?:ул\.|улица|проспект|переулок|дом\s+\d)\s*\S+/iu
 
 function randomSecret() {

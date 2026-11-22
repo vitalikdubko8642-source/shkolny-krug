@@ -3,6 +3,9 @@ import Icon from '../components/Icon.jsx'
 import Sheet from '../components/Sheet.jsx'
 import { hasPersonalData } from '../logic/personal.js'
 import { MAF_PLACE, MEET_PLACES } from '../data/demo.js'
+import Recorder from '../components/Recorder.jsx'
+import { MediaPlayer } from '../components/MediaMessage.jsx'
+import { getRecording, deleteRecording } from '../mediaStore.js'
 
 const API = import.meta.env.VITE_JURY_API || 'https://shkolny-krug-jury-demo.okla-school-8642.workers.dev'
 const KEY = 'shkolny-krug-jury-session-v1'
@@ -119,6 +122,18 @@ export default function JuryChat({ onBack, onSave }) {
       setAttachmentOpen(false); setAttachmentFile(null); setAttachmentConsent(false); await poll()
     } catch (e) { setError(e.message || 'Не удалось отправить файл.') } finally { setBusy(false) }
   }
+  const sendRecording = async (media) => {
+    try {
+      const blob = await getRecording(media.id)
+      if (!blob || blob.size > 1024 * 1024) throw new Error('Для чата жюри запись должна быть меньше 1 МБ. Попробуй короче.')
+      const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Не удалось прочитать запись.')); reader.readAsDataURL(blob) })
+      const mime = blob.type.split(';')[0].toLowerCase()
+      await call('attachment', { token: session.token, name: `${media.kind === 'audio' ? 'voice' : 'circle'}_${media.duration}.${mime.endsWith('mp4') ? 'mp4' : 'webm'}`, mime, data: dataUrl.slice(dataUrl.indexOf('base64,') + 7) })
+      await poll()
+      return true
+    } catch (e) { setError(e.message || 'Не удалось отправить запись.'); return false }
+    finally { try { await deleteRecording(media.id) } catch { /* best effort */ } }
+  }
   const toggleMeeting = async (meeting) => {
     setMeetingBusy(true); setError('')
     try { await call('meeting-rsvp', { token: session.token, meetingId: meeting.id, going: !meeting.mine }); await poll() }
@@ -181,7 +196,7 @@ export default function JuryChat({ onBack, onSave }) {
       {error && <p className="jury-error jury-send-error" role="alert">{error}</p>}
       {(replyTo || editing) && <div className="compose-bar"><Icon name={editing ? 'edit' : 'reply'} /><div className="cb-body"><b>{editing ? 'Редактирование' : `Ответ ${replyTo.author}`}</b><span>{(editing || replyTo).text}</span></div><button className="icon-btn" aria-label="Отменить ответ или изменение" onClick={() => { setEditing(null); setReplyTo(null); setText('') }}><Icon name="x" /></button></div>}
       {emojiOpen && <div className="emoji-picker jury-emoji-picker" role="region" aria-label="Выбор эмодзи"><div className="emoji-grid">{EMOJI.map(e => <button key={e} onClick={() => setText(value => value + e)} aria-label={`Добавить ${e}`}>{e}</button>)}</div></div>}
-      <form className="composer jury-composer" onSubmit={send}><button className="icon-btn plus" type="button" aria-label="Добавить" onClick={() => setAttachmentOpen(true)}><Icon name="plus" /></button><button className="icon-btn" type="button" aria-label="Эмодзи" onClick={() => setEmojiOpen(!emojiOpen)}><Icon name="smile" /></button><textarea aria-label="Сообщение" value={text} onChange={(e) => setText(e.target.value)} maxLength={500} placeholder="Сообщение" rows={1} /><button className="send" type="submit" aria-label={editing ? 'Сохранить' : 'Отправить'} disabled={busy || !text.trim()}><Icon name={editing ? 'check' : 'send'} /></button></form>
+      <form className="composer jury-composer" onSubmit={send}><button className="icon-btn plus" type="button" aria-label="Добавить" onClick={() => setAttachmentOpen(true)}><Icon name="plus" /></button><button className="icon-btn" type="button" aria-label="Эмодзи" onClick={() => setEmojiOpen(!emojiOpen)}><Icon name="smile" /></button><textarea aria-label="Сообщение" value={text} onChange={(e) => setText(e.target.value)} maxLength={500} placeholder="Сообщение" rows={1} />{text.trim() || editing ? <button className="send" type="submit" aria-label={editing ? 'Сохранить' : 'Отправить'} disabled={busy || !text.trim()}><Icon name={editing ? 'check' : 'send'} /></button> : <Recorder onSend={sendRecording} toast={setError} onActive={(active) => { if (active) setEmojiOpen(false) }} />}</form>
       {!session.jury && <button className="jury-leave" onClick={leave}>Выйти из комнаты</button>}
       {meetingOpen && <JuryMeetingForm onClose={() => setMeetingOpen(false)} onCreate={createMeeting} busy={meetingBusy} error={meetingError} currentTime={currentTime} />}
       {attachmentOpen && <Sheet title="Добавить" onClose={() => { setAttachmentOpen(false); setError('') }}><button className="btn ghost" onClick={() => { setAttachmentOpen(false); setMeetingError(''); setMeetingOpen(true) }}>Назначить встречу</button><label className="jury-file-pick">{attachmentFile ? attachmentFile.name : 'Выбрать файл'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,application/pdf,text/plain,application/zip,.docx,.pptx,.xlsx" onChange={e => { setAttachmentFile(e.target.files?.[0] || null); setError('') }} /></label><p>Изображения, видео и документы до 1 МБ. В тест загружай только вымышленные материалы без настоящих имён, телефонов и изображений людей.</p><label className="check"><input type="checkbox" checked={attachmentConsent} onChange={e => setAttachmentConsent(e.target.checked)} />Файл не содержит личных данных</label>{error && <p className="jury-error" role="alert">{error}</p>}<button className="btn" disabled={!attachmentFile || !attachmentConsent || busy} onClick={sendAttachment}>{busy ? 'Отправляем…' : 'Отправить файл'}</button></Sheet>}
@@ -194,6 +209,8 @@ function JuryFileMessage({ file, token }) {
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const recording = /^(voice|circle)_(\d+)\.(webm|mp4)$/.exec(file.name)
+  const recordingKind = recording?.[1] === 'voice' ? 'audio' : 'video'
   useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
   const open = async () => {
     if (url) return
@@ -204,7 +221,7 @@ function JuryFileMessage({ file, token }) {
       setUrl(URL.createObjectURL(new Blob([bytes], { type: data.mime })))
     } catch (e) { setError(e.message || 'Не удалось загрузить файл.') } finally { setBusy(false) }
   }
-  return <div className="jury-file" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}><b>{file.name}</b><small>{Math.ceil(file.size / 1024)} КБ</small>{!url ? <button className="mini-btn" onClick={open} disabled={busy}>{busy ? 'Загружаем…' : 'Открыть файл'}</button> : <>{file.mime.startsWith('image/') && <img src={url} alt={file.name} />}{file.mime.startsWith('video/') && <video src={url} controls playsInline preload="metadata" />}<a href={url} download={file.name}>Скачать</a></>}{error && <small role="alert">{error}</small>}</div>
+  return <div className="jury-file" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>{!recording && <><b>{file.name}</b><small>{Math.ceil(file.size / 1024)} КБ</small></>}{!url ? <button className="mini-btn" onClick={open} disabled={busy}>{busy ? 'Загружаем…' : recording ? (recordingKind === 'audio' ? 'Загрузить голосовое' : 'Загрузить видеосообщение') : 'Открыть файл'}</button> : recording ? <MediaPlayer kind={recordingKind} url={url} duration={Number(recording[2])} /> : <>{file.mime.startsWith('image/') && <img src={url} alt={file.name} />}{file.mime.startsWith('video/') && <video src={url} controls playsInline preload="metadata" />}<a href={url} download={file.name}>Скачать</a></>}{error && <small role="alert">{error}</small>}</div>
 }
 
 function JuryMeetingForm({ onClose, onCreate, busy, error, currentTime }) {
