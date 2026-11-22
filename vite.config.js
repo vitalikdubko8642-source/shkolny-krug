@@ -9,13 +9,15 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
+      injectRegister: null,
       includeAssets: ['icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'Школьный круг',
         short_name: 'Школьный круг',
         description: 'Общение, идеи и события школы в квартале «Окла»',
         lang: 'ru',
+        id: './',
         start_url: './',
         scope: './',
         display: 'standalone',

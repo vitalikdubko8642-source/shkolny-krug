@@ -56,7 +56,7 @@ function Page({ title, onBack, children }) {
 }
 
 // ---------- главная страница профиля ----------
-export default function Profile({ user, settings, page, onPage, onUser, onSettings, onReset, onRole, onTour, blocked, onUnblock }) {
+export default function Profile({ user, settings, page, onPage, onUser, onSettings, onReset, onRole, onTour, blocked, onUnblock, onInstall, installed }) {
   const back = () => onPage(null)
   if (page === 'me') return <MePage user={user} settings={settings} onUser={onUser} onBack={back} />
   if (page === 'look') return <LookPage settings={settings} onSettings={onSettings} onBack={back} />
@@ -90,6 +90,7 @@ export default function Profile({ user, settings, page, onPage, onUser, onSettin
         </div>
         <div className="group">
           {!isTeacher && <Row icon="map" color="#56CCF2" title="Гид по школе" sub="Что где находится и с кем познакомиться" onClick={onTour} />}
+          {!installed && <Row icon="download" color="#287bc2" title="Установить приложение" sub="Добавить на главный экран телефона" onClick={onInstall} />}
           <Row icon="info" color="#828282" title="О приложении" sub="Правила, модерация, режим демонстрации" onClick={() => onPage('about')} />
         </div>
       </div>

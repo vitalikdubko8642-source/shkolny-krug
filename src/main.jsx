@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './design.css'
 import App from './App.jsx'
+import './pwa.js'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

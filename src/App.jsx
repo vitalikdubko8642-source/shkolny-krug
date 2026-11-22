@@ -1,7 +1,7 @@
 // Главный компонент: решает, какой экран показать, и хранит общее состояние приложения.
 // Все действия (записаться, поддержать идею, отправить запрос…) — это функции ниже,
 // они меняют состояние, а оно автоматически сохраняется в памяти телефона (store.js).
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { usePersisted, reset, now } from './store.js'
 import * as demo from './data/demo.js'
 import Welcome from './screens/Welcome.jsx'
@@ -16,6 +16,8 @@ import Friends from './screens/Friends.jsx'
 import Profile from './screens/Profile.jsx'
 import TabBar from './components/TabBar.jsx'
 import { clearRecordings } from './mediaStore.js'
+import InstallGuide from './components/InstallGuide.jsx'
+import { subscribePwa, getPwaSnapshot, applyUpdate } from './pwa.js'
 
 export const defaultSettings = {
   theme: 'classic',     // classic | dark | clean
@@ -60,6 +62,9 @@ export default function App() {
   const stateRef = useRef(s)
   stateRef.current = s
   const [toastText, setToastText] = useState(null)
+  const [installOpen, setInstallOpen] = useState(false)
+  const [updateHidden, setUpdateHidden] = useState(false)
+  const pwa = useSyncExternalStore(subscribePwa, getPwaSnapshot)
   const patch = (p) => set((prev) => ({ ...prev, ...(typeof p === 'function' ? p(prev) : p) }))
   const settings = { ...defaultSettings, ...s.settings, notif: { ...defaultSettings.notif, ...s.settings?.notif } }
   const setSettings = (p) => patch((prev) => ({ settings: { ...settings, ...prev.settings, ...p } }))
@@ -214,7 +219,7 @@ export default function App() {
 
   // ----- Какой экран показать -----
   let screen
-  if (s.stage === 'welcome') screen = <Welcome onNext={() => patch({ stage: 'rules' })} />
+  if (s.stage === 'welcome') screen = <Welcome onNext={() => patch({ stage: 'rules' })} onInstall={() => setInstallOpen(true)} installed={pwa.installed} />
   else if (s.stage === 'rules') screen = <Rules onBack={() => patch({ stage: 'welcome' })} onNext={() => patch({ stage: 'register' })} />
   else if (s.stage === 'register') screen = (
     <Register onBack={() => patch({ stage: 'rules' })}
@@ -293,6 +298,8 @@ export default function App() {
         onSettings={setSettings}
         onRole={a.role}
         onTour={() => patch({ tourOpen: true })}
+        onInstall={() => setInstallOpen(true)}
+        installed={pwa.installed}
         onReset={async () => { try { await clearRecordings() } catch { toast('Не удалось очистить записи. Попробуй ещё раз.'); return }; reset(); location.reload() }}
       />
     )
@@ -301,6 +308,8 @@ export default function App() {
   return (
     <div className="app">
       {screen}
+      {pwa.needRefresh && !updateHidden && <div className="update-banner" role="status"><div><b>Доступна новая версия</b><span>Приложение перезапустится. Незавершённый ввод может не сохраниться.</span></div><button onClick={() => applyUpdate()}>Обновить</button><button className="update-later" onClick={() => setUpdateHidden(true)} aria-label="Обновить позже">×</button></div>}
+      {installOpen && <InstallGuide canPrompt={pwa.canPrompt} onClose={() => setInstallOpen(false)} />}
       {toastText && <div className="toast" onClick={() => setToastText(null)}>{toastText}</div>}
     </div>
   )
