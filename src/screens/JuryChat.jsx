@@ -6,6 +6,8 @@ import { MAF_PLACE, MEET_PLACES } from '../data/demo.js'
 import Recorder from '../components/Recorder.jsx'
 import { MediaPlayer } from '../components/MediaMessage.jsx'
 import { getRecording, deleteRecording } from '../mediaStore.js'
+import ProfileCard from '../components/ProfileCard.jsx'
+import { normalizeBanner } from '../components/ProfileBanner.jsx'
 
 const API = import.meta.env.VITE_JURY_API || 'https://shkolny-krug-jury-demo.okla-school-8642.workers.dev'
 const KEY = 'shkolny-krug-jury-session-v1'
@@ -25,7 +27,7 @@ async function call(action, payload) {
   return result
 }
 
-export default function JuryChat({ onBack, onSave }) {
+export default function JuryChat({ onBack, onSave, profile }) {
   const [session, setSession] = useState(getSession)
   const [nick, setNick] = useState('')
   const [code, setCode] = useState('')
@@ -38,6 +40,8 @@ export default function JuryChat({ onBack, onSave }) {
   const [editing, setEditing] = useState(null)
   const [replyTo, setReplyTo] = useState(null)
   const [emojiOpen, setEmojiOpen] = useState(false)
+  const [person, setPerson] = useState(null)
+  const [personBusy, setPersonBusy] = useState(false)
   const [hidden, setHidden] = useState(() => { try { return JSON.parse(localStorage.getItem('jury-hidden-' + (getSession()?.nick || 'none')) || '[]') } catch { return [] } })
   const [attachmentFile, setAttachmentFile] = useState(null)
   const [attachmentConsent, setAttachmentConsent] = useState(false)
@@ -50,6 +54,7 @@ export default function JuryChat({ onBack, onSave }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [connection, setConnection] = useState('')
+  const [profileError, setProfileError] = useState('')
   const [showCode, setShowCode] = useState(false)
   const [copyStatus, setCopyStatus] = useState('')
   const cursor = useRef(0)
@@ -85,6 +90,10 @@ export default function JuryChat({ onBack, onSave }) {
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible) }
   }, [poll, sessionToken])
   useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }) }, [messages.length])
+  useEffect(() => {
+    if (!sessionToken || !profile?.jury) return
+    call('profile-set', { token: sessionToken, banner: normalizeBanner(profile.banner), avatar: profile.avatarImage || null, status: profile.status || '', bio: profile.bio || '' }).then(() => setProfileError('')).catch(e => setProfileError('Не удалось обновить профиль: ' + e.message))
+  }, [sessionToken, profile?.jury, profile?.banner, profile?.avatarImage, profile?.status, profile?.bio])
 
   const enter = async (e) => {
     e.preventDefault(); setError(''); setBusy(true)
@@ -155,6 +164,11 @@ export default function JuryChat({ onBack, onSave }) {
     setHidden(next); try { localStorage.setItem('jury-hidden-' + session.nick, JSON.stringify(next)) } catch { /* hidden until reload */ }
     setMenu(null)
   }
+  const openPerson = async (nick) => {
+    setPersonBusy(true); setPerson({ nick }); setError('')
+    try { setPerson(await call('profile-get', { token: session.token, nick })) }
+    catch (e) { setPerson(null); setError(e.message) } finally { setPersonBusy(false) }
+  }
 
   if (!session) return (
     <>
@@ -180,6 +194,7 @@ export default function JuryChat({ onBack, onSave }) {
       <div className="topbar"><button className="icon-btn" aria-label="Назад" onClick={onBack}><Icon name="back" /></button><div className="jury-title"><h1>{session.jury ? '9В — наш класс' : 'Тестовый чат'}</h1><span>{session.jury ? 'Демонстрационный чат жюри' : `Ник: ${session.nick} · комната на 24 часа`}</span></div>{!session.jury && <button className="jury-code-btn" onClick={() => setShowCode(!showCode)} aria-expanded={showCode}>Код</button>}</div>
       {showCode && <div className="jury-invite"><b>Код приглашения</b><span>Передай его только участникам проверки.</span><code>{session.code}</code><button onClick={copy}>Скопировать код</button>{copyStatus && <small role="status">{copyStatus}</small>}</div>}
       {connection && <div className="jury-connection" role="status">{connection}</div>}
+      {profileError && <div className="jury-connection" role="status">{profileError}</div>}
       <div className="messages jury-messages">
         <div className="day">Анонимный тест · не отправляйте личные данные</div>
         {!messages.length && <p className="jury-empty">Здесь появятся настоящие сообщения участников этой комнаты.</p>}
@@ -189,7 +204,7 @@ export default function JuryChat({ onBack, onSave }) {
           const isFile = m.text.startsWith('::FILE::')
           const file = isFile ? attachments[m.text.slice(8)] : null
           const original = messages.find(item => item.id === m.replyId)
-          return <div key={m.id} className={'msg-wrap' + (m.author === session.nick ? ' own' : '')}><div className="msg jury-message" role="button" tabIndex={0} onClick={() => setMenu(m)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setMenu(m) } }}><div className="from">{m.author}</div>{m.replyId && <div className="quote"><b>{original?.author || 'Сообщение'}</b><span>{original?.text || 'Сообщение удалено'}</span></div>}{isMeetingMessage ? meeting && <div className="jury-meeting"><span className="jury-meeting-label"><Icon name="pin" /> ВСТРЕЧА</span><b>{meeting.place}</b><span>{new Date(meeting.startsAt).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span>{meeting.note && <span>{meeting.note}</span>}<span>Идут: {meeting.going}</span>{meeting.startsAt <= currentTime ? <small>Встреча прошла</small> : meeting.isOwner ? <small>Ты организатор и идёшь на встречу</small> : <button className="mini-btn" disabled={meetingBusy} onClick={(e) => { e.stopPropagation(); toggleMeeting(meeting) }}>{meeting.mine ? 'Не пойду' : 'Я иду'}</button>}</div> : isFile ? file && <JuryFileMessage file={file} token={session.token} /> : <div className="text">{m.text}</div>}{reactions.filter(r => r.messageId === m.id).length > 0 && <div className="reacts">{reactions.filter(r => r.messageId === m.id).map(r => <span className={'react' + (r.mine ? ' mine' : '')} key={r.reaction}>{r.reaction} {r.count}</span>)}</div>}<div className="meta"><span className="tm">{m.edited ? 'изменено ' : ''}{new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span></div></div></div>
+          return <div key={m.id} className={'msg-wrap' + (m.author === session.nick ? ' own' : '')}><div className="msg jury-message" role="button" tabIndex={0} onClick={() => setMenu(m)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setMenu(m) } }}><button className="from jury-author" onClick={e => { e.stopPropagation(); openPerson(m.author) }}>{m.author}</button>{m.replyId && <div className="quote"><b>{original?.author || 'Сообщение'}</b><span>{original?.text || 'Сообщение удалено'}</span></div>}{isMeetingMessage ? meeting && <div className="jury-meeting"><span className="jury-meeting-label"><Icon name="pin" /> ВСТРЕЧА</span><b>{meeting.place}</b><span>{new Date(meeting.startsAt).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span>{meeting.note && <span>{meeting.note}</span>}<span>Идут: {meeting.going}</span>{meeting.startsAt <= currentTime ? <small>Встреча прошла</small> : meeting.isOwner ? <small>Ты организатор и идёшь на встречу</small> : <button className="mini-btn" disabled={meetingBusy} onClick={(e) => { e.stopPropagation(); toggleMeeting(meeting) }}>{meeting.mine ? 'Не пойду' : 'Я иду'}</button>}</div> : isFile ? file && <JuryFileMessage file={file} token={session.token} /> : <div className="text">{m.text}</div>}{reactions.filter(r => r.messageId === m.id).length > 0 && <div className="reacts">{reactions.filter(r => r.messageId === m.id).map(r => <span className={'react' + (r.mine ? ' mine' : '')} key={r.reaction}>{r.reaction} {r.count}</span>)}</div>}<div className="meta"><span className="tm">{m.edited ? 'изменено ' : ''}{new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span></div></div></div>
         })}
         <div ref={bottom} />
       </div>
@@ -201,6 +216,7 @@ export default function JuryChat({ onBack, onSave }) {
       {meetingOpen && <JuryMeetingForm onClose={() => setMeetingOpen(false)} onCreate={createMeeting} busy={meetingBusy} error={meetingError} currentTime={currentTime} />}
       {attachmentOpen && <Sheet title="Добавить" onClose={() => { setAttachmentOpen(false); setError('') }}><button className="btn ghost" onClick={() => { setAttachmentOpen(false); setMeetingError(''); setMeetingOpen(true) }}>Назначить встречу</button><label className="jury-file-pick">{attachmentFile ? attachmentFile.name : 'Выбрать файл'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,application/pdf,text/plain,application/zip,.docx,.pptx,.xlsx" onChange={e => { setAttachmentFile(e.target.files?.[0] || null); setError('') }} /></label><p>Изображения, видео и документы до 1 МБ. В тест загружай только вымышленные материалы без настоящих имён, телефонов и изображений людей.</p><label className="check"><input type="checkbox" checked={attachmentConsent} onChange={e => setAttachmentConsent(e.target.checked)} />Файл не содержит личных данных</label>{error && <p className="jury-error" role="alert">{error}</p>}<button className="btn" disabled={!attachmentFile || !attachmentConsent || busy} onClick={sendAttachment}>{busy ? 'Отправляем…' : 'Отправить файл'}</button></Sheet>}
       {menu && <Sheet title="Сообщение" onClose={() => setMenu(null)}><div className="react-row">{REACTIONS.map(r => <button key={r} aria-label={`Реакция ${r}`} onClick={() => react(r)} disabled={busy}>{r}</button>)}</div><div className="menu-list"><button className="menu-item" onClick={() => { setReplyTo(menu); setEditing(null); setMenu(null) }}><Icon name="reply" />Ответить</button>{!menu.text.startsWith('::') && <button className="menu-item" onClick={() => { navigator.clipboard?.writeText(menu.text); setMenu(null) }}><Icon name="copy" />Скопировать</button>}{!menu.text.startsWith('::') && onSave && <button className="menu-item" onClick={() => { onSave(menu); setMenu(null) }}><Icon name="copy" />Сохранить в избранном</button>}{menu.author === session.nick && !menu.text.startsWith('::') && <><button className="menu-item" onClick={() => { setEditing(menu); setReplyTo(null); setText(menu.text); setMenu(null) }}><Icon name="edit" />Изменить</button><button className="menu-item danger" onClick={deleteMessage} disabled={busy}><Icon name="trash" />Удалить</button></>}<button className="menu-item" onClick={hideMessage}><Icon name="eyeoff" />Скрыть у себя</button></div><p className="sheet-note">Жалобы и проверка модератором ещё не подключены.</p></Sheet>}
+      {person && <Sheet title="Профиль" onClose={() => setPerson(null)}>{personBusy ? <p>Загружаем профиль…</p> : <><ProfileCard user={person} settings={{ showClass: true, showInterests: false, showOnline: false }} /><p className="sheet-note">Это вымышленный профиль участника демонстрации.</p></>}</Sheet>}
     </>
   )
 }

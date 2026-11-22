@@ -6,6 +6,7 @@ const places = ['У навеса во дворе', 'У главного вход
 const meetingPrefix = '::MEET::'
 const filePrefix = '::FILE::'
 const fileMaxBytes = 1024 * 1024
+const banners = new Set(['gaming', 'music', 'basketball', 'space', 'cobalt', 'pink', 'emerald', 'silver'])
 const fileTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'audio/webm', 'audio/mp4', 'audio/ogg', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain', 'application/zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
 const sensitive = /(?:\+?\d[\d\s()-]{5,}\d)|[\w.+-]+@[\w.-]+\.[a-zа-яё]{2,}|https?:\/\/|(?:ул\.|улица|проспект|переулок|дом\s+\d)\s*\S+/iu
 
@@ -31,7 +32,7 @@ export default {
     if (request.method !== 'POST') return reply({ error: 'Метод недоступен.' }, 405)
     let data
     try {
-      const maxLength = new URL(request.url).pathname === '/attachment' ? 1450000 : 4096
+      const maxLength = new URL(request.url).pathname === '/attachment' ? 1450000 : new URL(request.url).pathname === '/profile-set' ? 160000 : 4096
       if (Number(request.headers.get('Content-Length') || 0) > maxLength) return reply({ error: 'Запрос слишком большой.' }, 413)
       const text = await request.text()
       if (text.length > maxLength) return reply({ error: 'Запрос слишком большой.' }, 413)
@@ -77,12 +78,27 @@ export default {
         catch (e) { if (String(e).includes('UNIQUE')) return reply({ error: 'Этот ник в комнате уже занят.' }, 409); throw e }
         return reply({ code, token, nick: data.nick, expiresAt: found.expires_at })
       }
-      if (!['/poll', '/send', '/meeting', '/meeting-rsvp', '/attachment', '/attachment-get', '/message-edit', '/message-delete', '/message-react'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
+      if (!['/poll', '/send', '/meeting', '/meeting-rsvp', '/attachment', '/attachment-get', '/message-edit', '/message-delete', '/message-react', '/profile-set', '/profile-get'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
       if (typeof data.token !== 'string' || !secretPattern.test(data.token)) return reply({ error: 'Сессия недействительна.' }, 401)
       const tokenHash = await hash(data.token)
       if (!(await env.SESSION_LIMIT.limit({ key: tokenHash })).success) return reply({ error: 'Слишком много запросов. Подожди немного.' }, 429)
       const member = await env.DB.prepare('SELECT m.room_id, m.nick, r.expires_at FROM demo_members m JOIN demo_rooms r ON r.id = m.room_id WHERE m.token_hash = ? AND r.expires_at > ?').bind(tokenHash, Date.now()).first()
       if (!member) return reply({ error: 'Комната закрыта или время её работы истекло.' }, 401)
+      if (action === '/profile-set') {
+        const banner = banners.has(data.banner) ? data.banner : 'gaming'
+        const avatar = typeof data.avatar === 'string' ? data.avatar : null
+        const status = typeof data.status === 'string' ? data.status.trim() : ''
+        const bio = typeof data.bio === 'string' ? data.bio.trim() : ''
+        if ((avatar && (avatar.length > 140000 || !/^data:image\/webp;base64,[A-Za-z0-9+/]*={0,2}$/.test(avatar))) || status.length > 40 || bio.length > 120 || sensitive.test(status) || sensitive.test(bio)) return reply({ error: 'Проверь профиль: нужны вымышленные данные без телефонов, адресов и ссылок.' }, 400)
+        await env.DB.prepare('INSERT INTO demo_profiles (token_hash, banner, avatar, status, bio) VALUES (?, ?, ?, ?, ?) ON CONFLICT(token_hash) DO UPDATE SET banner = excluded.banner, avatar = excluded.avatar, status = excluded.status, bio = excluded.bio').bind(tokenHash, banner, avatar, status, bio).run()
+        return reply({ ok: true })
+      }
+      if (action === '/profile-get') {
+        if (typeof data.nick !== 'string' || !validNick(data.nick)) return reply({ error: 'Профиль не найден.' }, 404)
+        const profile = await env.DB.prepare('SELECT m.nick, p.banner, p.avatar, p.status, p.bio FROM demo_members m LEFT JOIN demo_profiles p ON p.token_hash = m.token_hash WHERE m.room_id = ? AND m.nick = ? COLLATE NOCASE').bind(member.room_id, data.nick).first()
+        if (!profile) return reply({ error: 'Профиль не найден.' }, 404)
+        return reply({ nick: profile.nick, banner: profile.banner || 'gaming', avatarImage: profile.avatar || null, status: profile.status || '', bio: profile.bio || '', cls: '9В', role: 'student', color: '#548bc3' })
+      }
       if (action === '/send') {
         const text = typeof data.text === 'string' ? data.text.trim() : ''
         if (!text || text.length > 500) return reply({ error: 'Сообщение должно содержать от 1 до 500 символов.' }, 400)

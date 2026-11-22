@@ -140,7 +140,7 @@ function MePage({ user, settings, onUser, onBack }) {
     <Page title="Мой профиль" onBack={onBack}>
       <p className="group-title">Предпросмотр профиля</p>
       <ProfileCard user={{ ...user, nick: nickOk ? nick : user.nick }} settings={settings} />
-      <p className="group-note">Настройки профиля пока сохраняются только в этом браузере.</p>
+      <p className="group-note">{user.jury ? 'Баннер и аватар станут видны участникам, когда ты откроешь чат 9В. Используй только вымышленные изображения.' : 'Настройки профиля пока сохраняются только в этом браузере.'}</p>
 
       <p className="group-title">Баннер профиля</p>
       <div className="profile-banner-grid">
@@ -168,9 +168,9 @@ function MePage({ user, settings, onUser, onBack }) {
 
       <p className="group-title">Никнейм</p>
       <div className="group pad">
-        <input className="field-in" value={nick} onChange={(e) => { setNick(e.target.value); if (validNick(e.target.value)) onUser({ nick: e.target.value }) }} autoCapitalize="off" />
+        <input className="field-in" value={nick} disabled={!!user.jury} onChange={(e) => { setNick(e.target.value); if (validNick(e.target.value)) onUser({ nick: e.target.value }) }} autoCapitalize="off" />
       </div>
-      <p className="group-note" style={{ color: nickOk ? undefined : 'var(--danger)' }}>От 3 до 20 символов: латиница, цифры, подчёркивание и точка. Ник не должен совпадать с существующим.</p>
+      <p className="group-note" style={{ color: nickOk ? undefined : 'var(--danger)' }}>{user.jury ? 'Для демонстрации каждому участнику назначен свой вымышленный ник.' : 'От 3 до 20 символов: латиница, цифры, подчёркивание и точка. Ник не должен совпадать с существующим.'}</p>
 
       <p className="group-title">Статус</p>
       <div className="group pad">
