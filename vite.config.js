@@ -11,7 +11,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       injectRegister: null,
-      includeAssets: ['icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'],
+      includeAssets: ['icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'profile-banners/*.webp', 'profile-bubbles/*.webp'],
       manifest: {
         name: 'Школьный круг',
         short_name: 'Школьный круг',
