@@ -17,6 +17,7 @@ import Profile from './screens/Profile.jsx'
 import TabBar from './components/TabBar.jsx'
 import { clearRecordings } from './mediaStore.js'
 import InstallGuide from './components/InstallGuide.jsx'
+import JuryChat from './screens/JuryChat.jsx'
 import { subscribePwa, getPwaSnapshot, applyUpdate } from './pwa.js'
 
 export const defaultSettings = {
@@ -63,6 +64,10 @@ export default function App() {
   stateRef.current = s
   const [toastText, setToastText] = useState(null)
   const [installOpen, setInstallOpen] = useState(false)
+  const [juryOpen, setJuryOpen] = useState(() => { try { return sessionStorage.getItem('shkolny-krug-jury-active') === '1' } catch { return false } })
+  const openJury = () => { try { sessionStorage.setItem('shkolny-krug-jury-active', '1') } catch { /* works until navigation */ }; history.pushState({ jury: true }, ''); setJuryOpen(true) }
+  const exitJury = () => { try { sessionStorage.removeItem('shkolny-krug-jury-active') } catch { /* ignore */ }; setJuryOpen(false) }
+  const closeJury = () => { if (history.state?.jury) history.back(); else exitJury() }
   const [updateHidden, setUpdateHidden] = useState(false)
   const pwa = useSyncExternalStore(subscribePwa, getPwaSnapshot)
   const patch = (p) => set((prev) => ({ ...prev, ...(typeof p === 'function' ? p(prev) : p) }))
@@ -71,6 +76,12 @@ export default function App() {
   const toast = (t) => setToastText(t)
 
   useEffect(() => { if (!toastText) return; const t = setTimeout(() => setToastText(null), 3400); return () => clearTimeout(t) }, [toastText])
+  useEffect(() => {
+    if (!juryOpen) return
+    const onPop = (event) => { if (!event.state?.jury) { try { sessionStorage.removeItem('shkolny-krug-jury-active') } catch { /* ignore */ }; setJuryOpen(false) } }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [juryOpen])
 
   // ----- Оформление = атрибуты у <html>; все цвета и размеры берутся из CSS-переменных -----
   useEffect(() => {
@@ -219,7 +230,8 @@ export default function App() {
 
   // ----- Какой экран показать -----
   let screen
-  if (s.stage === 'welcome') screen = <Welcome onNext={() => patch({ stage: 'rules' })} onInstall={() => setInstallOpen(true)} installed={pwa.installed} />
+  if (juryOpen) screen = <JuryChat onBack={closeJury} />
+  else if (s.stage === 'welcome') screen = <Welcome onNext={() => patch({ stage: 'rules' })} onInstall={() => setInstallOpen(true)} installed={pwa.installed} onJury={openJury} />
   else if (s.stage === 'rules') screen = <Rules onBack={() => patch({ stage: 'welcome' })} onNext={() => patch({ stage: 'register' })} />
   else if (s.stage === 'register') screen = (
     <Register onBack={() => patch({ stage: 'rules' })}
@@ -258,7 +270,7 @@ export default function App() {
       .flatMap((c) => (s.messages[c.id] || []).filter((m) => m.meet && !m.hidden).map((m) => ({ chatId: c.id, chatTitle: c.title, msgId: m.id, meet: m.meet, own: m.own })))
       .sort((x, y) => (y.own ? 1 : 0) - (x.own ? 1 : 0))
     let tab
-    if (s.tab === 'chats') tab = <ChatList user={s.user} chats={chats} messages={s.messages} unread={s.unread} alerts={s.alerts.filter((a) => !a.hidden)} onOpen={a.openChat} onCreateGroup={a.createGroup} onGoEvents={() => patch((prev) => ({ tab: 'events', seenAlerts: prev.alerts.map((a) => a.id) }))} />
+    if (s.tab === 'chats') tab = <ChatList user={s.user} chats={chats} messages={s.messages} unread={s.unread} alerts={s.alerts.filter((a) => !a.hidden)} onOpen={a.openChat} onCreateGroup={a.createGroup} onGoEvents={() => patch((prev) => ({ tab: 'events', seenAlerts: prev.alerts.map((a) => a.id) }))} onJury={openJury} />
     else if (s.tab === 'events') tab = (
       <Events user={s.user} events={s.events} alerts={s.alerts.filter((a) => !a.hidden)} meets={meets} groups={groups} toast={toast}
         onEvent={a.event} onCreateEvent={a.createEvent} onUpdateEvent={a.updateEvent} onDeleteEvent={a.deleteEvent} onAlert={a.alert} onAlertAct={a.alertAct}

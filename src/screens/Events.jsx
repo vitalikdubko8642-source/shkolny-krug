@@ -165,6 +165,7 @@ function AlertSheet({ onClose, onSend }) {
   const [place, setPlace] = useState(null)
   const [showAi, setShowAi] = useState(false)
   const [verdict, setVerdict] = useState(null)
+  const [reviewed, setReviewed] = useState(false)
   const ok = text.trim().length >= 4 && place
   const emergency = /пожар|горит|дым|эвакуац|взрыв|драка|нападен|плохо человеку|без сознания/i.test(text)
   const checked = verdict && verdict.text === text && verdict.place === place ? verdict.decision : null
@@ -172,18 +173,18 @@ function AlertSheet({ onClose, onSend }) {
     <Sheet onClose={onClose} title="Сообщить всем">
       <p>Это демонстрация: сообщение не отправляется ученикам или администрации. При опасности немедленно обратись к взрослому или в экстренные службы.</p>
       <div className="chips">
-        {ALERT_PRESETS.map((p) => <button key={p} className={'chip' + (text === p ? ' on' : '')} onClick={() => setText(p)}>{p}</button>)}
+        {ALERT_PRESETS.map((p) => <button key={p} className={'chip' + (text === p ? ' on' : '')} onClick={() => { setText(p); setReviewed(false) }}>{p}</button>)}
       </div>
-      <input className="sheet-input" value={text} onChange={(e) => setText(e.target.value)} placeholder="Или напиши своими словами" maxLength={80} />
+      <input className="sheet-input" value={text} onChange={(e) => { setText(e.target.value); setReviewed(false) }} placeholder="Или напиши своими словами" maxLength={80} />
       {emergency && <p className="err">При возможной опасности немедленно обратись к взрослому или позвони 112. Прототип не передаёт тревоги и не вызывает помощь.</p>}
       <p>Где?</p>
       <div className="chips">
-        {PLACES.map((p) => <button key={p} className={'chip' + (place === p ? ' on' : '')} onClick={() => setPlace(p)}>{p}</button>)}
+        {PLACES.map((p) => <button key={p} className={'chip' + (place === p ? ' on' : '')} onClick={() => { setPlace(p); setReviewed(false) }}>{p}</button>)}
       </div>
-      {checked && <p className={checked === 'allow' ? 'fine' : 'err'}>{checked === 'allow' ? 'ИИ разрешил публикацию в демо.' : checked === 'urgent' ? 'Возможна чрезвычайная ситуация. Обратись к взрослому или позвони 112 — приложение никого не уведомляет.' : 'ИИ не распознал сообщение как проблему школы. Измени текст и проверь ещё раз.'}</p>}
-      <button className="btn" disabled={!ok || emergency || checked !== 'allow'} onClick={() => onSend({ text: text.trim(), place })}>Сохранить демо-сообщение</button>
+      {checked && <><p className={checked === 'allow' ? 'fine' : 'err'}>{checked === 'allow' ? 'ИИ рекомендует сохранить сообщение. Решение принимает человек.' : checked === 'urgent' ? 'Возможна чрезвычайная ситуация. Обратись к взрослому или позвони 112 — приложение никого не уведомляет.' : 'ИИ не распознал сообщение как проблему школы и рекомендует не сохранять его. Решение принимает человек.'}</p><p className="fine">Это только проверка на этом устройстве: настоящего кабинета модератора и общей публикации пока нет.</p><label className="check"><input type="checkbox" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} /> Я проверил сообщение и хочу сохранить его в демо</label></>}
+      <button className="btn" disabled={!ok || emergency || !checked || !reviewed} onClick={() => onSend({ text: text.trim(), place })}>Сохранить демо-сообщение</button>
       <button className="btn ghost" disabled={!ok} onClick={() => setShowAi(true)}>Проверить с ИИ</button>
-      {showAi && <AiSheet task="alert" title="Проверка сообщения — демо" text={`${text} · ${place}`} onDecision={(decision) => setVerdict({ decision, text, place })} onClose={() => setShowAi(false)} />}
+      {showAi && <AiSheet task="alert" title="Проверка сообщения — демо" text={`${text} · ${place}`} onDecision={(decision) => { setVerdict({ decision, text, place }); setReviewed(false) }} onClose={() => setShowAi(false)} />}
     </Sheet>
   )
 }

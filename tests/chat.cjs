@@ -7,8 +7,10 @@ const assert = require('node:assert/strict')
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
   let requests = 0
+  let sentText = ''
   await page.route('https://shkolny-krug-ai.okla-school-8642.workers.dev/', async (route) => {
     requests++
+    sentText = JSON.parse(route.request().postData()).text
     await route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' }, body: JSON.stringify({ answer: 'Ребята обсуждают музыку.' }) })
   })
   try {
@@ -33,10 +35,20 @@ const assert = require('node:assert/strict')
     await page.getByRole('button', { name: 'Пересказать чат с ИИ' }).click()
     assert.equal(requests, 0)
     await page.locator('.sheet .check input').check()
+    assert.equal(await page.getByRole('button', { name: 'Отправить в ИИ' }).isDisabled(), true)
+    await page.getByRole('button', { name: 'Закрыть', exact: true }).click()
+    await page.locator('.msg-wrap').filter({ hasText: '+7912345678' }).click()
+    await page.getByRole('button', { name: 'Удалить', exact: true }).click()
+    await page.getByRole('button', { name: 'Удалить', exact: true }).click()
+    await page.locator('button.plus').click()
+    await page.getByRole('button', { name: 'Пересказать чат с ИИ' }).click()
+    await page.locator('.sheet .check input').check()
     await page.getByRole('button', { name: 'Отправить в ИИ' }).click()
     await page.getByText('Ребята обсуждают музыку.').waitFor()
     assert.match(await page.locator('.sheet').innerText(), /Ребята обсуждают музыку/)
     assert.equal(requests, 1)
+    assert.doesNotMatch(sentText, /moon_rider|pixel_cat|lisa_draws|\+7912345678/)
+    assert.match(sentText, /Участник 1/)
     assert.deepEqual(errors, [])
     console.log('Chat: private-data warning and explicit AI consent passed (AI response mocked).')
   } finally { await browser.close() }

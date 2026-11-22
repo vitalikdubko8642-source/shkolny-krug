@@ -59,6 +59,13 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
   const update = (id, p) => onChange((l) => l.map((m) => (m.id === id ? { ...m, ...p } : m)))
   const nickOf = (m) => (m.own ? user.nick : people[m.from]?.nick || m.from)
   const preview = (m) => (m.media ? (m.media.kind === 'audio' ? 'Голосовое сообщение' : 'Видеокружок') : m.meet ? `Встреча: ${m.meet.place}, ${m.meet.time}` : m.game ? `Мини-игра «${m.game.title}»` : m.text)
+  const summaryText = () => {
+    const aliases = new Map()
+    return list.filter((m) => m.text && !m.hidden).slice(-30).map((m) => {
+      if (!m.own && !aliases.has(m.from)) aliases.set(m.from, aliases.size + 1)
+      return `${m.own ? 'Вы' : `Участник ${aliases.get(m.from)}`}: ${m.text}`
+    }).join('\n')
+  }
 
   const insertEmoji = (emoji) => {
     const element = input.current
@@ -329,7 +336,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
           <div className="menu-list">
             <button className="menu-item" onClick={() => setSheet('meet')}><Icon name="pin" />Позвать на встречу</button>
             {!isDm && <button className="menu-item" onClick={startGame}><Icon name="game" />Мини-игра «Быстрый счёт»</button>}
-            <button className="menu-item" onClick={() => { setSheet(null); setAiTask({ task: 'summary', title: 'Что я пропустил?', text: list.filter((m) => m.text && !m.hidden).slice(-30).map((m) => `${m.own ? 'Вы' : m.from}: ${m.text}`).join('\n') }) }}><Icon name="chat" />Пересказать чат с ИИ</button>
+            <button className="menu-item" onClick={() => { setSheet(null); setAiTask({ task: 'summary', title: 'Что я пропустил?', text: summaryText() }) }}><Icon name="chat" />Пересказать чат с ИИ</button>
           </div>
           {!isDm && <p className="sheet-note">В мини-игре участвует кто хочет. За первые места — монеты на оформление профиля. Общего рейтинга нет: итоги видны только в этом раунде.</p>}
         </Sheet>

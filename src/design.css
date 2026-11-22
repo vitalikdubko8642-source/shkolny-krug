@@ -441,6 +441,39 @@ body { background: #edf2f5; letter-spacing: -.01em; }
 .create-chat { width: 44px; height: 44px; display: grid; place-items: center; flex: none; border-radius: 15px; color: var(--link); background: var(--nav-active); transition: transform 180ms ease, background-color 180ms ease; }
 .create-chat svg { width: 21px; height: 21px; }
 .create-chat:active { transform: scale(.94); }
+.jury-entry-link { display: block; padding: 9px 10px; color: var(--link); font-weight: 650; text-align: center; }
+.jury-list-row { display: flex; align-items: center; gap: 12px; width: calc(100% - 28px); margin: 2px 14px 6px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; text-align: left; background: var(--bg-2); }
+.jury-list-row > span:nth-child(2) { flex: 1; min-width: 0; }
+.jury-list-row b, .jury-list-row small { display: block; }
+.jury-list-row small { color: var(--text-2); margin-top: 2px; }
+.jury-list-row > svg { width: 18px; color: var(--text-2); }
+.jury-list-icon, .jury-intro-icon { display: grid; place-items: center; flex: none; color: var(--link); background: var(--nav-active); border-radius: 14px; }
+.jury-list-icon { width: 42px; height: 42px; }
+.jury-list-icon svg, .jury-intro-icon svg { width: 22px; height: 22px; }
+.jury-entry { padding: 22px 18px 32px; }
+.jury-intro-icon { width: 52px; height: 52px; }
+.jury-intro h2 { margin: 14px 0 8px; font-size: 23px; line-height: 1.18; letter-spacing: -.025em; }
+.jury-intro p, .jury-privacy { color: var(--text-2); line-height: 1.5; }
+.jury-seg { margin: 20px 0; }
+.jury-form { display: flex; flex-direction: column; gap: 9px; }
+.jury-form label { font-weight: 650; margin-top: 4px; }
+.jury-form input { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--bg-2); }
+.jury-form small { color: var(--text-2); }
+.jury-privacy { font-size: 13px; margin: 8px 0; }
+.jury-error { color: var(--danger); font-size: 13px; line-height: 1.4; }
+.jury-title { flex: 1; min-width: 0; }
+.jury-title h1 { margin: 0; font-size: 18px; }
+.jury-title span { display: block; font-size: 12px; color: var(--text-2); }
+.jury-code-btn { color: var(--link); min-height: 44px; padding: 0 10px; font-weight: 650; }
+.jury-invite { display: flex; flex-direction: column; gap: 7px; padding: 12px 16px; background: var(--bg-2); font-size: 13px; }
+.jury-invite span, .jury-invite small { color: var(--text-2); }
+.jury-invite code { overflow-wrap: anywhere; font-size: 15px; user-select: all; }
+.jury-invite button { align-self: flex-start; color: var(--link); min-height: 38px; font-weight: 650; }
+.jury-connection { padding: 8px 14px; font-size: 13px; background: var(--bg-2); color: var(--text-2); }
+.jury-empty { align-self: center; max-width: 260px; margin: 20px auto; text-align: center; color: var(--text-2); }
+.jury-send-error { margin: 0; padding: 7px 14px; }
+.jury-composer { padding-bottom: 8px; }
+.jury-leave { flex: none; padding: 4px 12px max(10px, env(safe-area-inset-bottom)); color: var(--text-2); font-size: 12px; }
 .alert-banner { margin: 0 14px 3px; border-radius: 14px; }
 .search { margin: 10px 14px 8px; border: 1px solid transparent; background: var(--bg-2); border-radius: 15px; min-height: 46px; }
 .search input { min-width: 0; }
