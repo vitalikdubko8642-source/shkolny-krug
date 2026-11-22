@@ -57,11 +57,11 @@ function Page({ title, onBack, children }) {
 }
 
 // ---------- главная страница профиля ----------
-export default function Profile({ user, settings, page, onPage, onUser, onSettings, onReset, onRole, onTour, blocked, onUnblock, onInstall, installed, onSwitchJury, canReturnToStudent, onModerator }) {
+export default function Profile({ user, settings, page, onPage, onUser, onSettings, onReset, onRole, onTour, blocked, onUnblock, onInstall, installed, onSwitchJury, canReturnToStudent, onModerator, onDirectSettings }) {
   const back = () => onPage(null)
   if (page === 'me') return <MePage user={user} settings={settings} onUser={onUser} onBack={back} />
   if (page === 'look') return <LookPage settings={settings} onSettings={onSettings} onBack={back} />
-  if (page === 'privacy') return <PrivacyPage user={user} settings={settings} onSettings={onSettings} blocked={blocked} onUnblock={onUnblock} onBack={back} />
+  if (page === 'privacy') return <PrivacyPage user={user} settings={settings} onSettings={onSettings} blocked={blocked} onUnblock={onUnblock} onBack={back} onDirectSettings={onDirectSettings} />
   if (page === 'notif') return <NotifPage settings={settings} onSettings={onSettings} onBack={back} />
   if (page === 'shop') return <ShopPage user={user} onUser={onUser} onBack={back} />
   if (page === 'about') return <AboutPage user={user} onBack={back} onReset={onReset} onRole={onRole} />
@@ -87,7 +87,7 @@ export default function Profile({ user, settings, page, onPage, onUser, onSettin
           <Row icon="palette" color="#9B51E0" title="Оформление приложения" sub={`Тема «${theme}», цвет, обои, размер текста`} onClick={() => onPage('look')} />
         </div>
         <div className="group">
-          <Row icon="lock" color="#27AE60" title="Конфиденциальность" sub={isTeacher ? 'Что видят ученики' : `Пишут лично: ${dm.toLowerCase()}`} onClick={() => onPage('privacy')} />
+          <Row icon="lock" color="#27AE60" title="Конфиденциальность" sub={user.jury ? 'Доступ к личным сообщениям' : isTeacher ? 'Что видят ученики' : `Пишут лично: ${dm.toLowerCase()}`} onClick={() => onPage('privacy')} />
           <Row icon="bell" color="#EB5757" title="Уведомления" sub="Чаты, события, новости школы" onClick={() => onPage('notif')} />
         </div>
         <div className="group">
@@ -260,20 +260,22 @@ function LookPage({ settings, onSettings, onBack }) {
 }
 
 // ---------- Конфиденциальность ----------
-function PrivacyPage({ settings, onSettings, blocked = [], onUnblock, onBack }) {
+function PrivacyPage({ user, settings, onSettings, blocked = [], onUnblock, onBack, onDirectSettings }) {
   const flip = (k) => () => onSettings({ [k]: !settings[k] })
   return (
     <Page title="Конфиденциальность" onBack={onBack}>
       <p className="group-title">Кто может прислать запрос в личку</p>
-      <div className="group">
+      {user.jury ? <div className="group"><Row title="Личные сообщения жюри" sub="Кто может писать и нужно ли согласие" onClick={onDirectSettings} /></div> : <><div className="group">
         {DM.map(([id, title]) => (
           <Row key={id} title={title} onClick={() => onSettings({ dmFrom: id })} right={<span className={'radio' + (settings.dmFrom === id ? ' on' : '')} />} />
         ))}
       </div>
       <div className="group"><Row title="Сначала спрашивать разрешение" sub="Когда выключено, разрешённые собеседники могут написать сразу" onClick={flip('dmRequireApproval')} right={<Toggle on={settings.dmRequireApproval} />} /></div>
       <p className="group-note">В демоверсии выбор действует на вымышленные запросы в этом браузере; настоящие личные чаты ещё не подключены.</p>
+      </>}
 
       <p className="group-title">Что видят другие</p>
+      {user.jury && <p className="group-note">Переключатели ниже относятся к локальной демонстрации и пока не меняют профиль жюри в общем чате.</p>}
       <div className="group">
         <Row title="Мой класс" onClick={flip('showClass')} right={<Toggle on={settings.showClass} />} />
         <Row title="Мои интересы" onClick={flip('showInterests')} right={<Toggle on={settings.showInterests} />} />

@@ -89,7 +89,8 @@ export default function App() {
     } catch { toast('Не удалось сохранить профиль на устройстве.') }
   }
   const [juryOpen, setJuryOpen] = useState(() => { try { return sessionStorage.getItem('shkolny-krug-jury-active') === '1' } catch { return false } })
-  const openJury = () => { try { sessionStorage.setItem('shkolny-krug-jury-active', '1') } catch { /* works until navigation */ }; history.pushState({ jury: true }, ''); setJuryOpen(true) }
+  const [juryDirect, setJuryDirect] = useState(false)
+  const openJury = (view) => { setJuryDirect(view === 'direct' || view === 'settings' ? view : false); try { sessionStorage.setItem('shkolny-krug-jury-active', '1') } catch { /* works until navigation */ }; history.pushState({ jury: true }, ''); setJuryOpen(true) }
   const exitJury = () => { try { sessionStorage.removeItem('shkolny-krug-jury-active') } catch { /* ignore */ }; setJuryOpen(false) }
   const closeJury = () => { if (history.state?.jury) history.back(); else exitJury() }
   const [updateHidden, setUpdateHidden] = useState(false)
@@ -282,7 +283,7 @@ export default function App() {
       setJuryRegistration(false)
     } catch { toast('Не удалось сохранить профиль на устройстве.') }
   }} />
-  else if (juryOpen) screen = <JuryChat profile={s.user} onBack={closeJury} archived={(s.archivedChats || []).includes('class:9В')} onArchive={() => { patch((prev) => ({ archivedChats: (prev.archivedChats || []).includes('class:9В') ? prev.archivedChats.filter(x => x !== 'class:9В') : [...(prev.archivedChats || []), 'class:9В'] })); closeJury() }} onWalletChange={(coins) => patch((prev) => ({ user: { ...prev.user, coins } }))} onSave={(message) => { patch((prev) => ({ messages: { ...prev.messages, saved: [...(prev.messages.saved || []), { id: 'saved-' + crypto.randomUUID(), from: prev.user.nick, own: true, text: message.text, time: now(), createdAt: new Date().toISOString(), forwardedFrom: message.author }] } })); toast('Сохранено в избранном на этом устройстве') }} />
+  else if (juryOpen) screen = <JuryChat profile={s.user} initialDirect={juryDirect} onBack={closeJury} archived={(s.archivedChats || []).includes('class:9В')} onArchive={() => { patch((prev) => ({ archivedChats: (prev.archivedChats || []).includes('class:9В') ? prev.archivedChats.filter(x => x !== 'class:9В') : [...(prev.archivedChats || []), 'class:9В'] })); closeJury() }} onWalletChange={(coins) => patch((prev) => ({ user: { ...prev.user, coins } }))} onSave={(message) => { patch((prev) => ({ messages: { ...prev.messages, saved: [...(prev.messages.saved || []), { id: 'saved-' + crypto.randomUUID(), from: prev.user.nick, own: true, text: message.text, time: now(), createdAt: new Date().toISOString(), forwardedFrom: message.author }] } })); toast('Сохранено в избранном на этом устройстве') }} />
   else if (s.stage === 'welcome') screen = <Welcome onNext={() => patch({ stage: 'rules' })} onInstall={() => setInstallOpen(true)} installed={pwa.installed} onJury={openJury} />
   else if (s.stage === 'rules') screen = <Rules onBack={() => patch({ stage: 'welcome' })} onNext={() => patch({ stage: 'register' })} />
   else if (s.stage === 'register') screen = (
@@ -325,7 +326,7 @@ export default function App() {
       .flatMap((c) => (s.messages[c.id] || []).filter((m) => m.meet && !m.hidden).map((m) => ({ chatId: c.id, chatTitle: c.title, msgId: m.id, meet: m.meet, own: m.own })))
       .sort((x, y) => (y.own ? 1 : 0) - (x.own ? 1 : 0))
     let tab
-    if (s.tab === 'chats') tab = <ChatList user={s.user} chats={chats} archivedChats={s.archivedChats || []} messages={s.messages} unread={s.unread} alerts={s.alerts.filter((a) => !a.hidden)} onOpen={a.openChat} onCreateGroup={a.createGroup} onGoEvents={() => patch((prev) => ({ tab: 'events', seenAlerts: prev.alerts.map((a) => a.id) }))} onJury={openJury} />
+    if (s.tab === 'chats') tab = <ChatList user={s.user} chats={chats} archivedChats={s.archivedChats || []} messages={s.messages} unread={s.unread} alerts={s.alerts.filter((a) => !a.hidden)} onOpen={a.openChat} onOpenDirect={() => openJury('direct')} onCreateGroup={a.createGroup} onGoEvents={() => patch((prev) => ({ tab: 'events', seenAlerts: prev.alerts.map((a) => a.id) }))} onJury={openJury} />
     else if (s.tab === 'events') tab = (
       <Events user={s.user} events={s.events} alerts={s.alerts.filter((a) => !a.hidden)} meets={meets} groups={groups} toast={toast}
         onEvent={a.event} onCreateEvent={a.createEvent} onUpdateEvent={a.updateEvent} onDeleteEvent={a.deleteEvent} onAlert={a.alert} onAlertAct={a.alertAct}
@@ -368,6 +369,7 @@ export default function App() {
         onInstall={() => setInstallOpen(true)}
         onSwitchJury={switchJury}
         onModerator={() => setModeratorOpen(true)}
+        onDirectSettings={() => openJury('settings')}
         canReturnToStudent={(() => { try { return !!localStorage.getItem(studentBackupKey) } catch { return false } })()}
         installed={pwa.installed}
         onReset={async () => { try { await clearRecordings() } catch { toast('Не удалось очистить записи. Попробуй ещё раз.'); return }; reset(); location.reload() }}

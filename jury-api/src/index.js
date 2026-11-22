@@ -35,7 +35,7 @@ export default {
     if (request.method !== 'POST') return reply({ error: 'Метод недоступен.' }, 405)
     let data
     try {
-      const maxLength = new URL(request.url).pathname === '/attachment' ? 1450000 : new URL(request.url).pathname === '/profile-set' ? 160000 : 4096
+      const maxLength = ['/attachment', '/dm-attachment'].includes(new URL(request.url).pathname) ? 1450000 : new URL(request.url).pathname === '/profile-set' ? 160000 : 4096
       if (Number(request.headers.get('Content-Length') || 0) > maxLength) return reply({ error: 'Запрос слишком большой.' }, 413)
       const text = await request.text()
       if (text.length > maxLength) return reply({ error: 'Запрос слишком большой.' }, 413)
@@ -56,10 +56,13 @@ export default {
           return reply({ reports: result.results })
         }
         if (typeof data.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(data.id) || !['keep', 'remove'].includes(data.decision)) return reply({ error: 'Проверь решение.' }, 400)
-        const report = await env.DB.prepare("SELECT id, room_id, message_id, snapshot FROM demo_reports WHERE id = ? AND status = 'pending'").bind(data.id).first()
+        const report = await env.DB.prepare("SELECT id, room_id, message_id, snapshot, conversation_id FROM demo_reports WHERE id = ? AND status = 'pending'").bind(data.id).first()
         if (!report) return reply({ error: 'Жалоба не найдена или уже рассмотрена.' }, 404)
         if (data.decision === 'remove') {
-          const result = await env.DB.batch([
+          const result = report.conversation_id ? await env.DB.batch([
+            env.DB.prepare('DELETE FROM demo_dm_messages WHERE id = ? AND conversation_id = ? AND text = ?').bind(report.message_id, report.conversation_id, report.snapshot),
+            env.DB.prepare("UPDATE demo_reports SET status = 'removed', decided_at = ? WHERE id = ? AND status = 'pending' AND NOT EXISTS (SELECT 1 FROM demo_dm_messages WHERE id = ? AND conversation_id = ?)").bind(Date.now(), data.id, report.message_id, report.conversation_id),
+          ]) : await env.DB.batch([
             env.DB.prepare('DELETE FROM demo_messages WHERE id = ? AND room_id = ? AND text = ?').bind(report.message_id, report.room_id, report.snapshot),
             env.DB.prepare("UPDATE demo_reports SET status = 'removed', decided_at = ? WHERE id = ? AND status = 'pending' AND NOT EXISTS (SELECT 1 FROM demo_messages WHERE id = ? AND room_id = ?)").bind(Date.now(), data.id, report.message_id, report.room_id),
           ])
@@ -104,12 +107,130 @@ export default {
         catch (e) { if (String(e).includes('UNIQUE')) return reply({ error: 'Этот ник в комнате уже занят.' }, 409); throw e }
         return reply({ code, token, nick: data.nick, expiresAt: found.expires_at })
       }
-      if (!['/poll', '/send', '/meeting', '/meeting-rsvp', '/attachment', '/attachment-get', '/message-edit', '/message-delete', '/message-react', '/profile-set', '/profile-get', '/gift-send', '/gift-visibility', '/game-reward', '/bubble-buy', '/bubble-equip', '/report'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
+      if (!['/poll', '/send', '/meeting', '/meeting-rsvp', '/attachment', '/attachment-get', '/message-edit', '/message-delete', '/message-react', '/profile-set', '/profile-get', '/gift-send', '/gift-visibility', '/game-reward', '/bubble-buy', '/bubble-equip', '/report', '/dm-people', '/dm-settings', '/dm-request', '/dm-list', '/dm-respond', '/dm-poll', '/dm-send', '/dm-block', '/dm-attachment', '/dm-attachment-get', '/dm-message-edit', '/dm-message-delete', '/dm-message-react', '/dm-report'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
       if (typeof data.token !== 'string' || !secretPattern.test(data.token)) return reply({ error: 'Сессия недействительна.' }, 401)
       const tokenHash = await hash(data.token)
       if (!(await env.SESSION_LIMIT.limit({ key: tokenHash })).success) return reply({ error: 'Слишком много запросов. Подожди немного.' }, 429)
       const member = await env.DB.prepare('SELECT m.room_id, m.nick, r.expires_at FROM demo_members m JOIN demo_rooms r ON r.id = m.room_id WHERE m.token_hash = ? AND r.expires_at > ?').bind(tokenHash, Date.now()).first()
       if (!member) return reply({ error: 'Комната закрыта или время её работы истекло.' }, 401)
+      if (action === '/dm-people') {
+        const people = await env.DB.prepare('SELECT nick FROM demo_members WHERE room_id = ? AND token_hash != ? ORDER BY nick').bind(member.room_id, tokenHash).all()
+        return reply({ people: people.results })
+      }
+      if (action === '/dm-settings') {
+        if (data.allowed !== undefined || data.approval !== undefined) {
+          if (!['all', 'class', 'nobody'].includes(data.allowed) || typeof data.approval !== 'boolean') return reply({ error: 'Проверь настройки личных сообщений.' }, 400)
+          await env.DB.prepare('INSERT INTO demo_dm_settings (token_hash, allowed, approval) VALUES (?, ?, ?) ON CONFLICT(token_hash) DO UPDATE SET allowed = excluded.allowed, approval = excluded.approval').bind(tokenHash, data.allowed, data.approval ? 1 : 0).run()
+        }
+        const current = await env.DB.prepare('SELECT allowed, approval FROM demo_dm_settings WHERE token_hash = ?').bind(tokenHash).first()
+        return reply({ allowed: current?.allowed || 'all', approval: current ? !!current.approval : true })
+      }
+      if (action === '/dm-request') {
+        if (typeof data.nick !== 'string' || !validNick(data.nick)) return reply({ error: 'Участник не найден.' }, 404)
+        const recipient = await env.DB.prepare('SELECT m.token_hash, s.allowed, s.approval FROM demo_members m LEFT JOIN demo_dm_settings s ON s.token_hash = m.token_hash WHERE m.room_id = ? AND m.nick = ? COLLATE NOCASE').bind(member.room_id, data.nick).first()
+        if (!recipient || recipient.token_hash === tokenHash) return reply({ error: 'Участник не найден.' }, 404)
+        if (await env.DB.prepare('SELECT owner FROM demo_dm_blocks WHERE (owner = ? AND blocked = ?) OR (owner = ? AND blocked = ?)').bind(tokenHash, recipient.token_hash, recipient.token_hash, tokenHash).first()) return reply({ error: 'Личная переписка недоступна.' }, 403)
+        const [first, second] = [tokenHash, recipient.token_hash].sort()
+        const existing = await env.DB.prepare('SELECT id, status, initiator FROM demo_dm_conversations WHERE room_id = ? AND first_token = ? AND second_token = ?').bind(member.room_id, first, second).first()
+        if (existing) return reply({ id: existing.id, status: existing.status, incoming: existing.status === 'pending' && existing.initiator !== tokenHash })
+        if (recipient.allowed === 'nobody') return reply({ error: 'Этот участник сейчас не принимает новые сообщения.' }, 403)
+        const id = crypto.randomUUID(), status = recipient.approval === 0 ? 'accepted' : 'pending'
+        await env.DB.prepare('INSERT OR IGNORE INTO demo_dm_conversations (id, room_id, first_token, second_token, initiator, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, member.room_id, first, second, tokenHash, status, Date.now()).run()
+        const current = await env.DB.prepare('SELECT id, status, initiator FROM demo_dm_conversations WHERE room_id = ? AND first_token = ? AND second_token = ?').bind(member.room_id, first, second).first()
+        return reply({ id: current.id, status: current.status, incoming: current.status === 'pending' && current.initiator !== tokenHash })
+      }
+      if (action === '/dm-block') {
+        if (typeof data.nick !== 'string' || typeof data.blocked !== 'boolean') return reply({ error: 'Проверь данные участника.' }, 400)
+        const target = await env.DB.prepare('SELECT token_hash FROM demo_members WHERE room_id = ? AND nick = ? COLLATE NOCASE').bind(member.room_id, data.nick).first()
+        if (!target || target.token_hash === tokenHash) return reply({ error: 'Участник не найден.' }, 404)
+        if (data.blocked) await env.DB.prepare('INSERT OR IGNORE INTO demo_dm_blocks (owner, blocked) VALUES (?, ?)').bind(tokenHash, target.token_hash).run()
+        else await env.DB.prepare('DELETE FROM demo_dm_blocks WHERE owner = ? AND blocked = ?').bind(tokenHash, target.token_hash).run()
+        return reply({ ok: true })
+      }
+      if (action === '/dm-list') {
+        const list = await env.DB.prepare('SELECT c.id, c.status, c.initiator != ? AS incoming, m.nick, (SELECT CASE WHEN text LIKE \'::FILE::%\' THEN \'Вложение\' ELSE text END FROM demo_dm_messages WHERE conversation_id = c.id ORDER BY id DESC LIMIT 1) AS lastText FROM demo_dm_conversations c JOIN demo_members m ON m.token_hash = CASE WHEN c.first_token = ? THEN c.second_token ELSE c.first_token END WHERE c.room_id = ? AND (c.first_token = ? OR c.second_token = ?) ORDER BY c.created_at DESC').bind(tokenHash, tokenHash, member.room_id, tokenHash, tokenHash).all()
+        return reply({ conversations: list.results })
+      }
+      if (['/dm-respond', '/dm-poll', '/dm-send', '/dm-attachment', '/dm-attachment-get', '/dm-message-edit', '/dm-message-delete', '/dm-message-react', '/dm-report'].includes(action)) {
+        if (typeof data.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(data.id)) return reply({ error: 'Переписка не найдена.' }, 404)
+        const conversation = await env.DB.prepare('SELECT c.id, c.status, c.initiator, m.nick FROM demo_dm_conversations c JOIN demo_members m ON m.token_hash = CASE WHEN c.first_token = ? THEN c.second_token ELSE c.first_token END WHERE c.id = ? AND c.room_id = ? AND (c.first_token = ? OR c.second_token = ?)').bind(tokenHash, data.id, member.room_id, tokenHash, tokenHash).first()
+        if (!conversation) return reply({ error: 'Переписка не найдена.' }, 404)
+        if (action === '/dm-respond') {
+          if (conversation.status !== 'pending' || conversation.initiator === tokenHash || typeof data.accept !== 'boolean') return reply({ error: 'На этот запрос нельзя ответить.' }, 400)
+          if (data.accept) await env.DB.prepare("UPDATE demo_dm_conversations SET status = 'accepted' WHERE id = ? AND status = 'pending'").bind(data.id).run()
+          else await env.DB.prepare("DELETE FROM demo_dm_conversations WHERE id = ? AND status = 'pending'").bind(data.id).run()
+          return reply({ ok: true })
+        }
+        if (conversation.status !== 'accepted') return reply({ error: 'Сначала нужно согласие получателя.' }, 403)
+        if (action === '/dm-send' || action === '/dm-attachment') {
+          const other = await env.DB.prepare('SELECT token_hash FROM demo_members WHERE room_id = ? AND nick = ? COLLATE NOCASE').bind(member.room_id, conversation.nick).first()
+          if (!other || await env.DB.prepare('SELECT owner FROM demo_dm_blocks WHERE (owner = ? AND blocked = ?) OR (owner = ? AND blocked = ?)').bind(tokenHash, other.token_hash, other.token_hash, tokenHash).first()) return reply({ error: 'Личная переписка недоступна.' }, 403)
+        }
+        if (action === '/dm-send') {
+          const text = typeof data.text === 'string' ? data.text.trim() : ''
+          if (!text || text.length > 500 || text.startsWith(filePrefix) || sensitive.test(text)) return reply({ error: 'Текст должен быть непустым и без личных данных.' }, 400)
+          let replyId = null
+          if (data.replyId != null) {
+            if (!Number.isSafeInteger(data.replyId) || !await env.DB.prepare('SELECT id FROM demo_dm_messages WHERE id = ? AND conversation_id = ?').bind(data.replyId, data.id).first()) return reply({ error: 'Сообщение для ответа не найдено.' }, 404)
+            replyId = data.replyId
+          }
+          await env.DB.prepare('INSERT INTO demo_dm_messages (conversation_id, author, text, created_at, reply_id) VALUES (?, ?, ?, ?, ?)').bind(data.id, tokenHash, text, Date.now(), replyId).run()
+          return reply({ ok: true })
+        }
+        if (['/dm-message-edit', '/dm-message-delete', '/dm-message-react', '/dm-report'].includes(action)) {
+          if (!Number.isSafeInteger(data.messageId)) return reply({ error: 'Сообщение не найдено.' }, 404)
+          const message = await env.DB.prepare('SELECT d.id, d.author, d.text, m.nick AS authorNick FROM demo_dm_messages d JOIN demo_members m ON m.token_hash = d.author WHERE d.id = ? AND d.conversation_id = ?').bind(data.messageId, data.id).first()
+          if (!message) return reply({ error: 'Сообщение не найдено.' }, 404)
+          if (action === '/dm-report') {
+            const details = typeof data.details === 'string' ? data.details.trim() : ''
+            if (message.author === tokenHash || message.text.startsWith(filePrefix) || !reportReasons.has(data.reason) || details.length > 300 || (data.reason === 'Другое' && !details) || sensitive.test(details)) return reply({ error: 'Проверь причину и не указывай личные данные.' }, 400)
+            await env.DB.prepare('INSERT INTO demo_reports (id, room_id, message_id, reporter, author, snapshot, reason, details, created_at, conversation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), member.room_id, message.id, member.nick, message.authorNick, message.text, data.reason, details, Date.now(), data.id).run()
+            return reply({ ok: true })
+          }
+          if (action === '/dm-message-react') {
+            if (data.reaction !== null && !['👍', '❤️', '😂', '🔥', '😮', '😢'].includes(data.reaction)) return reply({ error: 'Неверная реакция.' }, 400)
+            if (data.reaction === null) await env.DB.prepare('DELETE FROM demo_dm_reactions WHERE message_id = ? AND token_hash = ?').bind(data.messageId, tokenHash).run()
+            else await env.DB.prepare('INSERT INTO demo_dm_reactions (message_id, token_hash, reaction) VALUES (?, ?, ?) ON CONFLICT(message_id, token_hash) DO UPDATE SET reaction = excluded.reaction').bind(data.messageId, tokenHash, data.reaction).run()
+            return reply({ ok: true })
+          }
+          if (message.author !== tokenHash) return reply({ error: 'Изменять можно только свои сообщения.' }, 403)
+          if (action === '/dm-message-delete') {
+            if (message.text.startsWith(filePrefix)) await env.DB.batch([env.DB.prepare('DELETE FROM demo_attachments WHERE id = ? AND conversation_id = ?').bind(message.text.slice(filePrefix.length), data.id), env.DB.prepare('DELETE FROM demo_dm_messages WHERE id = ? AND conversation_id = ?').bind(data.messageId, data.id)])
+            else await env.DB.prepare('DELETE FROM demo_dm_messages WHERE id = ? AND conversation_id = ?').bind(data.messageId, data.id).run()
+          } else {
+            const text = typeof data.text === 'string' ? data.text.trim() : ''
+            if (message.text.startsWith(filePrefix) || !text || text.length > 500 || text.startsWith(filePrefix) || sensitive.test(text)) return reply({ error: 'Проверь текст сообщения.' }, 400)
+            await env.DB.prepare('UPDATE demo_dm_messages SET text = ?, edited = 1 WHERE id = ? AND conversation_id = ?').bind(text, data.messageId, data.id).run()
+          }
+          return reply({ ok: true })
+        }
+        if (action === '/dm-attachment') {
+          const name = typeof data.name === 'string' ? data.name.trim() : '', encoded = data.data
+          if (!name || name.length > 100 || /[\\/\x00-\x1f]/.test(name) || sensitive.test(name) || !fileTypes.has(data.mime) || typeof encoded !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) return reply({ error: 'Проверь формат и имя файла; личные данные использовать нельзя.' }, 400)
+          let size; try { size = atob(encoded).length } catch { return reply({ error: 'Не удалось прочитать файл.' }, 400) }
+          if (!size || size > fileMaxBytes) return reply({ error: 'Размер файла — не больше 1 МБ.' }, 400)
+          const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM demo_attachments WHERE conversation_id = ?').bind(data.id).first()
+          if (count.n >= 30) return reply({ error: 'В этой переписке уже 30 файлов.' }, 409)
+          const fileId = crypto.randomUUID(), now = Date.now()
+          await env.DB.batch([
+            env.DB.prepare('INSERT INTO demo_attachments (id, room_id, name, mime, size, data, created_at, conversation_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(fileId, member.room_id, name, data.mime, size, encoded, now, data.id),
+            env.DB.prepare('INSERT INTO demo_dm_messages (conversation_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(data.id, tokenHash, filePrefix + fileId, now),
+          ])
+          return reply({ id: fileId })
+        }
+        if (action === '/dm-attachment-get') {
+          if (typeof data.fileId !== 'string' || !/^[0-9a-f-]{36}$/i.test(data.fileId)) return reply({ error: 'Файл не найден.' }, 404)
+          const file = await env.DB.prepare('SELECT name, mime, size, data FROM demo_attachments WHERE id = ? AND conversation_id = ?').bind(data.fileId, data.id).first()
+          if (!file) return reply({ error: 'Файл не найден.' }, 404)
+          return reply(file)
+        }
+        const messages = await env.DB.prepare('SELECT * FROM (SELECT d.id, d.text, d.created_at AS createdAt, d.reply_id AS replyId, d.edited, d.author = ? AS own, m.nick AS author FROM demo_dm_messages d JOIN demo_members m ON m.token_hash = d.author WHERE d.conversation_id = ? ORDER BY d.id DESC LIMIT 500) ORDER BY id ASC').bind(tokenHash, data.id).all()
+        const myBlock = await env.DB.prepare('SELECT b.owner FROM demo_dm_blocks b JOIN demo_members m ON m.token_hash = b.blocked WHERE b.owner = ? AND m.room_id = ? AND m.nick = ? COLLATE NOCASE').bind(tokenHash, member.room_id, conversation.nick).first()
+        const attachments = await env.DB.prepare('SELECT id, name, mime, size FROM demo_attachments WHERE conversation_id = ?').bind(data.id).all()
+        const styles = await env.DB.prepare("SELECT m.nick, COALESCE(p.bubble, 'default') AS bubble FROM demo_members m LEFT JOIN demo_profiles p ON p.token_hash = m.token_hash WHERE m.room_id = ? AND (m.token_hash = ? OR m.nick = ? COLLATE NOCASE)").bind(member.room_id, tokenHash, conversation.nick).all()
+        const reactions = await env.DB.prepare('SELECT r.message_id AS messageId, r.reaction, COUNT(*) AS count, MAX(r.token_hash = ?) AS mine FROM demo_dm_reactions r JOIN demo_dm_messages m ON m.id = r.message_id WHERE m.conversation_id = ? GROUP BY r.message_id, r.reaction').bind(tokenHash, data.id).all()
+        return reply({ nick: conversation.nick, blocked: !!myBlock, messages: messages.results, attachments: attachments.results, styles: styles.results, reactions: reactions.results })
+      }
       if (action === '/report') {
         const details = typeof data.details === 'string' ? data.details.trim() : ''
         if (!Number.isSafeInteger(data.id) || !reportReasons.has(data.reason) || details.length > 300 || (data.reason === 'Другое' && !details) || sensitive.test(details)) return reply({ error: 'Выбери причину и не указывай личные данные.' }, 400)
@@ -218,8 +339,10 @@ export default {
           return reply({ ok: true })
         }
         if (message.author !== member.nick) return reply({ error: 'Изменять можно только свои сообщения.' }, 403)
-        if (message.text.startsWith(meetingPrefix) || message.text.startsWith(filePrefix)) return reply({ error: 'Это сообщение нельзя изменить здесь.' }, 400)
-        if (action === '/message-delete') await env.DB.prepare('DELETE FROM demo_messages WHERE id = ? AND room_id = ?').bind(data.id, member.room_id).run()
+        if (action === '/message-edit' && (message.text.startsWith(meetingPrefix) || message.text.startsWith(filePrefix))) return reply({ error: 'Это сообщение нельзя изменить здесь.' }, 400)
+        if (action === '/message-delete' && message.text.startsWith(filePrefix)) await env.DB.batch([env.DB.prepare('DELETE FROM demo_attachments WHERE id = ? AND room_id = ? AND conversation_id IS NULL').bind(message.text.slice(filePrefix.length), member.room_id), env.DB.prepare('DELETE FROM demo_messages WHERE id = ? AND room_id = ?').bind(data.id, member.room_id)])
+        else if (action === '/message-delete' && message.text.startsWith(meetingPrefix)) await env.DB.batch([env.DB.prepare('DELETE FROM demo_meetings WHERE id = ? AND room_id = ? AND owner_token_hash = ?').bind(message.text.slice(meetingPrefix.length), member.room_id, tokenHash), env.DB.prepare('DELETE FROM demo_messages WHERE id = ? AND room_id = ?').bind(data.id, member.room_id)])
+        else if (action === '/message-delete') await env.DB.prepare('DELETE FROM demo_messages WHERE id = ? AND room_id = ?').bind(data.id, member.room_id).run()
         else {
           const text = typeof data.text === 'string' ? data.text.trim() : ''
           if (!text || text.length > 500 || text.startsWith(meetingPrefix) || text.startsWith(filePrefix) || sensitive.test(text)) return reply({ error: 'Проверь текст: он должен быть непустым и без личных данных.' }, 400)
@@ -235,7 +358,7 @@ export default {
         let size
         try { size = atob(encoded).length } catch { return reply({ error: 'Не удалось прочитать файл.' }, 400) }
         if (!size || size > fileMaxBytes) return reply({ error: 'Размер файла — не больше 1 МБ.' }, 400)
-        const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM demo_attachments WHERE room_id = ?').bind(member.room_id).first()
+        const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM demo_attachments WHERE room_id = ? AND conversation_id IS NULL').bind(member.room_id).first()
         if (count.n >= 30) return reply({ error: 'В этой тестовой комнате уже 30 файлов.' }, 409)
         const id = crypto.randomUUID(), now = Date.now()
         await env.DB.batch([
@@ -246,7 +369,7 @@ export default {
       }
       if (action === '/attachment-get') {
         if (typeof data.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(data.id)) return reply({ error: 'Файл не найден.' }, 404)
-        const file = await env.DB.prepare('SELECT name, mime, size, data FROM demo_attachments WHERE id = ? AND room_id = ?').bind(data.id, member.room_id).first()
+        const file = await env.DB.prepare('SELECT name, mime, size, data FROM demo_attachments WHERE id = ? AND room_id = ? AND conversation_id IS NULL').bind(data.id, member.room_id).first()
         if (!file) return reply({ error: 'Файл не найден.' }, 404)
         return reply(file)
       }
@@ -278,7 +401,7 @@ export default {
       const since = Number.isSafeInteger(data.since) && data.since >= 0 ? data.since : 0
       const result = await env.DB.prepare('SELECT * FROM (SELECT id, author, text, created_at AS createdAt, reply_id AS replyId, edited FROM demo_messages WHERE room_id = ? AND id > ? ORDER BY id DESC LIMIT 500) ORDER BY id ASC').bind(member.room_id, since).all()
       const meetings = await env.DB.prepare('SELECT m.id, m.place, m.note, m.starts_at AS startsAt, m.owner_token_hash = ? AS isOwner, (SELECT COUNT(*) FROM demo_meeting_attendees a WHERE a.meeting_id = m.id) AS going, EXISTS(SELECT 1 FROM demo_meeting_attendees a WHERE a.meeting_id = m.id AND a.token_hash = ?) AS mine FROM demo_meetings m WHERE m.room_id = ?').bind(tokenHash, tokenHash, member.room_id).all()
-      const attachments = await env.DB.prepare('SELECT id, name, mime, size FROM demo_attachments WHERE room_id = ?').bind(member.room_id).all()
+      const attachments = await env.DB.prepare('SELECT id, name, mime, size FROM demo_attachments WHERE room_id = ? AND conversation_id IS NULL').bind(member.room_id).all()
       const reactions = await env.DB.prepare('SELECT r.message_id AS messageId, r.reaction, COUNT(*) AS count, MAX(r.token_hash = ?) AS mine FROM demo_reactions r JOIN demo_messages m ON m.id = r.message_id WHERE m.room_id = ? GROUP BY r.message_id, r.reaction').bind(tokenHash, member.room_id).all()
       const styles = await env.DB.prepare("SELECT m.nick, COALESCE(p.bubble, 'default') AS bubble FROM demo_members m LEFT JOIN demo_profiles p ON p.token_hash = m.token_hash WHERE m.room_id = ?").bind(member.room_id).all()
       return reply({ messages: result.results, meetings: meetings.results, attachments: attachments.results, reactions: reactions.results, styles: styles.results, expiresAt: member.expires_at })

@@ -9,7 +9,7 @@ import { findSimilar, checkNew } from '../logic/moderation.js'
 const GROUP_COLORS = ['#F2994A', '#9B51E0', '#27AE60', '#EB5757', '#2F80ED', '#56CCF2', '#BB6BD9']
 
 // Список чатов как в Telegram: плашка срочного, папки, строки чатов, кнопка «создать группу».
-export default function ChatList({ user, chats, archivedChats = [], messages, unread, alerts, onOpen, onCreateGroup, onGoEvents }) {
+export default function ChatList({ user, chats, archivedChats = [], messages, unread, alerts, onOpen, onOpenDirect, onCreateGroup, onGoEvents }) {
   const [folder, setFolder] = useState('all')
   const [q, setQ] = useState('')
   const [creating, setCreating] = useState(false)
@@ -75,6 +75,7 @@ export default function ChatList({ user, chats, archivedChats = [], messages, un
         {moreFolders && <button className="folders-more" aria-label="Показать остальные папки" onClick={() => foldersRef.current?.scrollBy({ left: 160, behavior: 'smooth' })}><Icon name="chevron" /></button>}
       </div>
       <div className="scroll" style={{ paddingBottom: 80 }}>
+        {user?.jury && (folder === 'all' || folder === 'dm') && !q.trim() && <button className="jury-list-row" onClick={onOpenDirect}><span className="jury-list-icon"><Icon name="mail" /></span><span><b>Личные сообщения</b><small>Запросы и переписки участников жюри</small></span><Icon name="chevron" /></button>}
         {list.length === 0 && q.trim() && <div className="empty"><b>Ничего не нашли</b><span>Попробуй другой запрос.</span></div>}
         {list.length === 0 && !q.trim() && folder === 'archive' && <div className="empty"><b>Архив пуст</b><span>Открой информацию о чате, чтобы убрать его в архив.</span></div>}
         {list.length === 0 && !q.trim() && folder === 'dm' && (
