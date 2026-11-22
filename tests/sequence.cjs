@@ -1,0 +1,26 @@
+const { chromium } = require('playwright-core')
+const assert = require('node:assert/strict')
+;(async () => {
+  const b = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] })
+  try {
+    const p = await b.newPage({ viewport: { width: 375, height: 812 } })
+    await p.clock.install()
+    await p.goto(process.env.TEST_URL || 'http://127.0.0.1:5193/')
+    await p.getByRole('button', { name: 'Начать', exact: true }).click()
+    await p.getByRole('checkbox').check(); await p.getByRole('button', { name: 'Дальше' }).click()
+    await p.getByRole('button', { name: /Заполнить пустые поля/ }).click(); await p.getByRole('button', { name: 'Готово', exact: true }).click(); await p.getByRole('button', { name: 'Пропустить' }).click()
+    await p.locator('.tabbar button', { hasText: 'Чаты' }).click(); await p.getByRole('button', { name: /9Б — наш класс/ }).click()
+    await p.getByRole('button', { name: 'Встреча или игра' }).click(); await p.getByRole('button', { name: /Продолжи ряд/ }).click()
+    await p.getByText(/соперники и их результаты вымышлены/).waitFor()
+    await p.getByRole('button', { name: 'Начать', exact: true }).click()
+    await p.clock.runFor(2500)
+    const values = (await p.locator('.task').innerText()).match(/\d+/g).map(Number)
+    const answer = values[2] + values[1] - values[0]
+    for (const digit of String(answer)) await p.locator('.numpad').getByRole('button', { name: digit, exact: true }).click()
+    await p.locator('.numpad').getByRole('button', { name: '✓' }).click()
+    assert.match(await p.locator('.game-score').innerText(), /1/)
+    await p.clock.runFor(31000)
+    await p.getByText(/Верных ответов: 1/).waitFor()
+    console.log('Sequence game accepts the correct next number and completes.')
+  } finally { await b.close() }
+})().catch(e => { console.error(e); process.exit(1) })

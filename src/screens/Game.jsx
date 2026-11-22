@@ -19,11 +19,17 @@ export function makeTask() {
   const b = rnd(2, 9), r = rnd(2, 12); return { q: `${b * r} ÷ ${b}`, a: r }
 }
 
-export default function Game({ title, chatTitle, players, user, onFinish, onExit }) {
+export function makeSequenceTask() {
+  const start = rnd(1, 20), step = rnd(2, 8)
+  return { q: `${start}, ${start + step}, ${start + step * 2}, ?`, a: start + step * 3 }
+}
+
+export default function Game({ title, chatTitle, players, user, onFinish, onExit, mode = 'math' }) {
   const [phase, setPhase] = useState('intro')   // intro → count → play → done
   const [count, setCount] = useState(3)
   const [left, setLeft] = useState(DURATION)
-  const [task, setTask] = useState(makeTask)
+  const makeCurrentTask = mode === 'sequence' ? makeSequenceTask : makeTask
+  const [task, setTask] = useState(makeCurrentTask)
   const [answer, setAnswer] = useState('')
   const [score, setScore] = useState(0)
   const [flash, setFlash] = useState(null)       // 'ok' | 'bad'
@@ -71,7 +77,7 @@ export default function Game({ title, chatTitle, players, user, onFinish, onExit
       setFlash(ok ? 'ok' : 'bad')
       setTimeout(() => setFlash(null), 250)
       setAnswer('')
-      setTask(makeTask())
+      setTask(makeCurrentTask())
       return
     }
     if (answer.length < 4) setAnswer((a) => a + k)
@@ -101,12 +107,13 @@ export default function Game({ title, chatTitle, players, user, onFinish, onExit
           <div className="game-intro">
             <div className="game-emoji">🧮</div>
             <h2>{title}</h2>
-            <p>За {DURATION} секунд реши как можно больше примеров. Ошибка не отнимает очки — просто следующий пример.</p>
+            <p>За {DURATION} секунд {mode === 'sequence' ? 'продолжи как можно больше числовых рядов' : 'реши как можно больше примеров'}. Ошибка не отнимает очки — просто следующее задание.</p>
             <div className="prize-row">
               <span>🥇 30 🪙</span><span>🥈 20 🪙</span><span>🥉 10 🪙</span><span>участие 5 🪙</span>
             </div>
             <p className="sheet-note">Монеты тратятся на оформление профиля. Не больше 50 монет за день; общих рейтингов нет.</p>
             <p className="sheet-note">Играют: {players.map((p) => people[p]?.nick || p).join(', ')} и ты</p>
+            <p className="sheet-note">В демоверсии соперники и их результаты вымышлены; игра проходит на этом устройстве.</p>
             <button className="btn" onClick={() => setPhase('count')}>Начать</button>
           </div>
         )}
@@ -117,7 +124,7 @@ export default function Game({ title, chatTitle, players, user, onFinish, onExit
           <>
             <div className="timer"><i style={{ width: (left / DURATION) * 100 + '%' }} /></div>
             <div className="time-left">{left} сек</div>
-            <div className={'task' + (flash ? ' ' + flash : '')}>{task.q} =</div>
+            <div className={'task' + (flash ? ' ' + flash : '')}>{task.q}{mode !== 'sequence' && ' ='}</div>
             <div className="answer-box">{answer || <span>?</span>}</div>
             <div className="numpad">
               {['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '✓'].map((k) => (
@@ -133,7 +140,7 @@ export default function Game({ title, chatTitle, players, user, onFinish, onExit
             <h2>{score === 0 ? 'Не успел?' : result.place <= 3 ? `${result.place} место!` : 'Хорошая игра!'}</h2>
             {score === 0
               ? <p>Ни одного верного ответа — в этот раз без монет. Попробуй в следующем раунде!</p>
-              : <p>Ты решил {score} {score % 10 === 1 && score % 100 !== 11 ? 'пример' : score % 10 >= 2 && score % 10 <= 4 && (score % 100 < 10 || score % 100 >= 20) ? 'примера' : 'примеров'} и получаешь <b>+{result.coins} 🪙</b></p>}
+              : <p>Верных ответов: {score}. Ты получаешь <b>+{result.coins} 🪙</b></p>}
             <div className="result-table">
               {result.table.map((r, i) => (
                 <div key={r.nick} className={r.me ? 'me' : ''}><span>{i + 1}</span><b>{r.nick}</b><span>{r.score}</span></div>

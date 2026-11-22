@@ -158,9 +158,9 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
     botAnswer()
   }
 
-  const startGame = () => {
+  const startGame = (mode = 'math') => {
     const id = 'u' + Date.now()
-    onChange((l) => [...l, { id, from: user.nick, own: true, text: '', time: now(), createdAt: new Date().toISOString(), game: { id, title: 'Быстрый счёт', by: user.nick, players: 1 } }])
+    onChange((l) => [...l, { id, from: user.nick, own: true, text: '', time: now(), createdAt: new Date().toISOString(), game: { id, title: mode === 'sequence' ? 'Продолжи ряд' : 'Быстрый счёт', mode, by: user.nick, players: 1 } }])
     setSheet(null)
     setGame({ msgId: id })
   }
@@ -178,7 +178,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
     const extra = Object.keys(people).filter((n) => people[n].cls && !fromChat.includes(n))
     const players = [...fromChat, ...extra].slice(0, 5)
     return (
-      <Game title={gameMsg.game.title} chatTitle={chat.title} players={players} user={user}
+      <Game title={gameMsg.game.title} mode={gameMsg.game.mode} chatTitle={chat.title} players={players} user={user}
         onExit={() => { update(gameMsg.id, { game: { ...gameMsg.game, cancelled: true } }); setGame(null) }}
         onFinish={(res) => { onGameFinish(gameMsg.id, res); setGame(null) }} />
     )
@@ -339,7 +339,8 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
         <Sheet onClose={() => setSheet(null)}>
           <div className="menu-list">
             <button className="menu-item" onClick={() => setSheet('meet')}><Icon name="pin" />Позвать на встречу</button>
-            {!isDm && <button className="menu-item" onClick={startGame}><Icon name="game" />Мини-игра «Быстрый счёт»</button>}
+            {!isDm && <button className="menu-item" onClick={() => startGame()}><Icon name="game" />Мини-игра «Быстрый счёт»</button>}
+            {!isDm && <button className="menu-item" onClick={() => startGame('sequence')}><Icon name="game" />Мини-игра «Продолжи ряд»</button>}
             <button className="menu-item" onClick={() => { setSheet(null); setAiTask({ task: 'summary', title: 'Что я пропустил?', text: summaryText() }) }}><Icon name="chat" />Пересказать чат с ИИ</button>
           </div>
           {!isDm && <p className="sheet-note">В мини-игре участвует кто хочет. За первые места — монеты на оформление профиля. Общего рейтинга нет: итоги видны только в этом раунде.</p>}
@@ -368,7 +369,8 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
                 <div className="menu-list">
                   {chat.own && <button className="menu-item" onClick={() => setSheet('invite')}><Icon name="user" />Пригласить участника</button>}
                   <button className="menu-item" onClick={() => setSheet('meet')}><Icon name="pin" />Позвать на встречу</button>
-                  <button className="menu-item" onClick={startGame}><Icon name="game" />Мини-игра «Быстрый счёт»</button>
+                  <button className="menu-item" onClick={() => startGame()}><Icon name="game" />Мини-игра «Быстрый счёт»</button>
+                  <button className="menu-item" onClick={() => startGame('sequence')}><Icon name="game" />Мини-игра «Продолжи ряд»</button>
                 </div>
               )}
               {!isSaved && <p className="sheet-note">{isChannel ? 'Здесь пишет только администрация школы.' : 'В этом чате нет учителей. Если что-то задело — нажми на сообщение и пожалуйся.'}</p>}
@@ -403,7 +405,7 @@ function GameCard({ g, onPlay }) {
     <>
       <div className="meet-heading"><span className="meet-symbol"><Icon name="game" /></span><span className="lbl">Мини-игра</span></div>
       <div className="what">{g.title}</div>
-      <div className="who">запустил {people[g.by]?.nick || g.by} · 30 секунд на примеры</div>
+      <div className="who">запустил {people[g.by]?.nick || g.by} · 30 секунд</div>
       {g.cancelled ? <span className="who">Раунд завершён без результата</span> : g.results ? (
         <div className="game-results">
           <span>Участников: {g.results.length} · Победитель: {g.results[0]?.nick}</span>
