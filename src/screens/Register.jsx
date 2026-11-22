@@ -14,8 +14,8 @@ const validPhone = (value) => { const d = value.replace(/\D/g, ''); return /^[78
 
 // Регистрация. В настоящей версии ФИО и телефон сверяются со списком учеников школы —
 // так посторонние не попадут внутрь. Другим пользователям виден ТОЛЬКО ник.
-export default function Register({ onBack, onDone }) {
-  const [role, setRole] = useState('student')
+export default function Register({ onBack, onDone, initialRole = 'student' }) {
+  const [role, setRole] = useState(initialRole)
   const [f, setF] = useState({ name: '', phone: '', nick: '', cls: '', interests: [], newcomer: false })
   const [tried, setTried] = useState(false)
   const [teacherCode, setTeacherCode] = useState('')
@@ -66,8 +66,8 @@ export default function Register({ onBack, onDone }) {
       <div className="scroll">
         <div className="form">
           <div className="seg">
-            <button className={role === 'student' ? 'on' : ''} onClick={() => setRole('student')}>Я ученик</button>
-            <button className={role === 'teacher' ? 'on' : ''} onClick={() => setRole('teacher')}>Я учитель</button>
+            {initialRole !== 'jury' && <button className={role === 'student' ? 'on' : ''} onClick={() => setRole('student')}>Я ученик</button>}
+            {initialRole !== 'jury' && <button className={role === 'teacher' ? 'on' : ''} onClick={() => setRole('teacher')}>Я учитель</button>}
             <button className={role === 'jury' ? 'on' : ''} onClick={() => setRole('jury')}>Жюри</button>
           </div>
 

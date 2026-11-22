@@ -56,7 +56,7 @@ function Page({ title, onBack, children }) {
 }
 
 // ---------- главная страница профиля ----------
-export default function Profile({ user, settings, page, onPage, onUser, onSettings, onReset, onRole, onTour, blocked, onUnblock, onInstall, installed }) {
+export default function Profile({ user, settings, page, onPage, onUser, onSettings, onReset, onRole, onTour, blocked, onUnblock, onInstall, installed, onSwitchJury, canReturnToStudent }) {
   const back = () => onPage(null)
   if (page === 'me') return <MePage user={user} settings={settings} onUser={onUser} onBack={back} />
   if (page === 'look') return <LookPage settings={settings} onSettings={onSettings} onBack={back} />
@@ -89,6 +89,7 @@ export default function Profile({ user, settings, page, onPage, onUser, onSettin
           <Row icon="bell" color="#EB5757" title="Уведомления" sub="Чаты, события, новости школы" onClick={() => onPage('notif')} />
         </div>
         <div className="group">
+          {(!user.jury || canReturnToStudent) && <Row icon="users" color="#528ACC" title={user.jury ? 'Вернуться к профилю ученика' : 'Войти как жюри'} sub={user.jury ? 'Твой учебный профиль сохранён на устройстве' : 'Вход по личному коду · профиль ученика сохранится'} onClick={onSwitchJury} />}
           {!isTeacher && <Row icon="map" color="#56CCF2" title="Гид по школе" sub="Что где находится и с кем познакомиться" onClick={onTour} />}
           {!installed && <Row icon="download" color="#287bc2" title="Установить приложение" sub="Добавить на главный экран телефона" onClick={onInstall} />}
           <Row icon="info" color="#828282" title="О приложении" sub="Правила, модерация, режим демонстрации" onClick={() => onPage('about')} />
@@ -362,7 +363,7 @@ function AboutPage({ user, onBack, onReset, onRole }) {
         <Row title="Школьный круг" sub="Учебный прототип · УрбанКод-2026" right={<span className="rv">v0.3</span>} />
         <Row title={<span style={{ color: 'var(--danger)' }}>Сбросить прототип и начать заново</span>} onClick={() => setConfirm(true)} right={null} />
       </div>
-      <p className="group-note">Все люди и сообщения в прототипе выдуманы. Данные хранятся только на этом телефоне.</p>
+      <p className="group-note">Обычный демопрофиль хранится в этом браузере. Чат жюри работает через сервер для совместной проверки; используйте в нём только вымышленные данные.</p>
       {teacherCode !== null && <div className="sheet-bg" onClick={() => setTeacherCode(null)}><div className="sheet" onClick={(e) => e.stopPropagation()}><h3>Режим учителя</h3><p>Введите код для демонстрации. Это учебная проверка, не защита учётной записи.</p><input className="sheet-input" value={teacherCode} onChange={(e) => { setTeacherCode(e.target.value); setCodeError(false) }} placeholder="Код" />{codeError && <p className="err">Код не подошёл</p>}<button className="btn" onClick={() => { if (teacherCode.trim().toUpperCase() === 'OKLA2026') { setTeacherCode(null); onRole('teacher') } else setCodeError(true) }}>Войти</button><button className="btn ghost" onClick={() => setTeacherCode(null)}>Отмена</button></div></div>}
 
       {confirm && (

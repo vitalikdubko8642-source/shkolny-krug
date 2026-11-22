@@ -64,6 +64,26 @@ export default function App() {
   stateRef.current = s
   const [toastText, setToastText] = useState(null)
   const [installOpen, setInstallOpen] = useState(false)
+  const [juryRegistration, setJuryRegistration] = useState(false)
+  const studentBackupKey = 'shkolny-krug-student-backup-v1'
+  const juryBackupKey = 'shkolny-krug-jury-backup-v1'
+  const switchJury = () => {
+    try {
+      if (s.user?.jury) {
+        const savedStudent = JSON.parse(localStorage.getItem(studentBackupKey) || 'null')
+        if (!savedStudent?.user) { toast('Сохранённый профиль ученика не найден.'); return }
+        localStorage.setItem(juryBackupKey, JSON.stringify(s))
+        set({ ...savedStudent, stage: 'main', tab: 'profile', openChat: null, profilePage: null, tourOpen: false })
+      } else {
+        const savedJury = JSON.parse(localStorage.getItem(juryBackupKey) || 'null')
+        const jurySession = JSON.parse(localStorage.getItem('shkolny-krug-jury-profile-v1') || 'null')
+        if (savedJury?.user?.jury && jurySession?.token && jurySession.expiresAt > Date.now()) {
+          localStorage.setItem(studentBackupKey, JSON.stringify(s))
+          set({ ...savedJury, stage: 'main', tab: 'profile', openChat: null, profilePage: null, tourOpen: false })
+        } else setJuryRegistration(true)
+      }
+    } catch { toast('Не удалось сохранить профиль на устройстве.') }
+  }
   const [juryOpen, setJuryOpen] = useState(() => { try { return sessionStorage.getItem('shkolny-krug-jury-active') === '1' } catch { return false } })
   const openJury = () => { try { sessionStorage.setItem('shkolny-krug-jury-active', '1') } catch { /* works until navigation */ }; history.pushState({ jury: true }, ''); setJuryOpen(true) }
   const exitJury = () => { try { sessionStorage.removeItem('shkolny-krug-jury-active') } catch { /* ignore */ }; setJuryOpen(false) }
@@ -230,7 +250,14 @@ export default function App() {
 
   // ----- Какой экран показать -----
   let screen
-  if (juryOpen) screen = <JuryChat onBack={closeJury} />
+  if (juryRegistration) screen = <Register initialRole="jury" onBack={() => setJuryRegistration(false)} onDone={(user) => {
+    try {
+      localStorage.setItem(studentBackupKey, JSON.stringify(s))
+      set({ ...initial, settings: s.settings, user: { ...user, coins: 50, owned: [] }, stage: 'main', tab: 'chats' })
+      setJuryRegistration(false)
+    } catch { toast('Не удалось сохранить профиль на устройстве.') }
+  }} />
+  else if (juryOpen) screen = <JuryChat onBack={closeJury} />
   else if (s.stage === 'welcome') screen = <Welcome onNext={() => patch({ stage: 'rules' })} onInstall={() => setInstallOpen(true)} installed={pwa.installed} onJury={openJury} />
   else if (s.stage === 'rules') screen = <Rules onBack={() => patch({ stage: 'welcome' })} onNext={() => patch({ stage: 'register' })} />
   else if (s.stage === 'register') screen = (
@@ -311,6 +338,8 @@ export default function App() {
         onRole={a.role}
         onTour={() => patch({ tourOpen: true })}
         onInstall={() => setInstallOpen(true)}
+        onSwitchJury={switchJury}
+        canReturnToStudent={(() => { try { return !!localStorage.getItem(studentBackupKey) } catch { return false } })()}
         installed={pwa.installed}
         onReset={async () => { try { await clearRecordings() } catch { toast('Не удалось очистить записи. Попробуй ещё раз.'); return }; reset(); location.reload() }}
       />
