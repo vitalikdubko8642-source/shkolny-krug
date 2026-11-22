@@ -4,6 +4,9 @@ const secretPattern = /^[A-Za-z0-9_-]{32}$/
 const nickPattern = /^[a-zA-Z0-9_]{3,16}$/
 const places = ['У навеса во дворе', 'У главного входа', 'У велопарковки', 'В библиотеке', 'В столовой']
 const meetingPrefix = '::MEET::'
+const filePrefix = '::FILE::'
+const fileMaxBytes = 1024 * 1024
+const fileTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain', 'application/zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
 const sensitive = /(?:\+?\d[\d\s()-]{5,}\d)|[\w.+-]+@[\w.-]+\.[a-zа-яё]{2,}|https?:\/\/|(?:ул\.|улица|проспект|переулок|дом\s+\d)\s*\S+/iu
 
 function randomSecret() {
@@ -28,9 +31,10 @@ export default {
     if (request.method !== 'POST') return reply({ error: 'Метод недоступен.' }, 405)
     let data
     try {
-      if (Number(request.headers.get('Content-Length') || 0) > 4096) return reply({ error: 'Запрос слишком большой.' }, 413)
+      const maxLength = new URL(request.url).pathname === '/attachment' ? 1450000 : 4096
+      if (Number(request.headers.get('Content-Length') || 0) > maxLength) return reply({ error: 'Запрос слишком большой.' }, 413)
       const text = await request.text()
-      if (text.length > 4096) return reply({ error: 'Запрос слишком большой.' }, 413)
+      if (text.length > maxLength) return reply({ error: 'Запрос слишком большой.' }, 413)
       data = JSON.parse(text)
     } catch { return reply({ error: 'Неверный запрос.' }, 400) }
     if (!data || typeof data !== 'object' || Array.isArray(data)) return reply({ error: 'Неверный запрос.' }, 400)
@@ -73,7 +77,7 @@ export default {
         catch (e) { if (String(e).includes('UNIQUE')) return reply({ error: 'Этот ник в комнате уже занят.' }, 409); throw e }
         return reply({ code, token, nick: data.nick, expiresAt: found.expires_at })
       }
-      if (!['/poll', '/send', '/meeting', '/meeting-rsvp'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
+      if (!['/poll', '/send', '/meeting', '/meeting-rsvp', '/attachment', '/attachment-get'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
       if (typeof data.token !== 'string' || !secretPattern.test(data.token)) return reply({ error: 'Сессия недействительна.' }, 401)
       const tokenHash = await hash(data.token)
       if (!(await env.SESSION_LIMIT.limit({ key: tokenHash })).success) return reply({ error: 'Слишком много запросов. Подожди немного.' }, 429)
@@ -82,10 +86,33 @@ export default {
       if (action === '/send') {
         const text = typeof data.text === 'string' ? data.text.trim() : ''
         if (!text || text.length > 500) return reply({ error: 'Сообщение должно содержать от 1 до 500 символов.' }, 400)
-        if (text.startsWith(meetingPrefix)) return reply({ error: 'Неверный формат сообщения.' }, 400)
+        if (text.startsWith(meetingPrefix) || text.startsWith(filePrefix)) return reply({ error: 'Неверный формат сообщения.' }, 400)
         if (sensitive.test(text)) return reply({ error: 'В тесте нельзя отправлять номера, адреса, почту и ссылки. Используй вымышленные данные.' }, 400)
         const entry = await env.DB.prepare('INSERT INTO demo_messages (room_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(member.room_id, member.nick, text, Date.now()).run()
         return reply({ id: entry.meta.last_row_id })
+      }
+      if (action === '/attachment') {
+        const name = typeof data.name === 'string' ? data.name.trim() : ''
+        const mime = data.mime
+        const encoded = data.data
+        if (!name || name.length > 100 || /[\\/\x00-\x1f]/.test(name) || sensitive.test(name) || !fileTypes.has(mime) || typeof encoded !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) return reply({ error: 'Проверь формат и имя файла; личные данные использовать нельзя.' }, 400)
+        let size
+        try { size = atob(encoded).length } catch { return reply({ error: 'Не удалось прочитать файл.' }, 400) }
+        if (!size || size > fileMaxBytes) return reply({ error: 'Размер файла — не больше 1 МБ.' }, 400)
+        const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM demo_attachments WHERE room_id = ?').bind(member.room_id).first()
+        if (count.n >= 30) return reply({ error: 'В этой тестовой комнате уже 30 файлов.' }, 409)
+        const id = crypto.randomUUID(), now = Date.now()
+        await env.DB.batch([
+          env.DB.prepare('INSERT INTO demo_attachments (id, room_id, name, mime, size, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, member.room_id, name, mime, size, encoded, now),
+          env.DB.prepare('INSERT INTO demo_messages (room_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(member.room_id, member.nick, filePrefix + id, now),
+        ])
+        return reply({ id })
+      }
+      if (action === '/attachment-get') {
+        if (typeof data.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(data.id)) return reply({ error: 'Файл не найден.' }, 404)
+        const file = await env.DB.prepare('SELECT name, mime, size, data FROM demo_attachments WHERE id = ? AND room_id = ?').bind(data.id, member.room_id).first()
+        if (!file) return reply({ error: 'Файл не найден.' }, 404)
+        return reply(file)
       }
       if (action === '/meeting') {
         const now = Date.now()
@@ -115,7 +142,8 @@ export default {
       const since = Number.isSafeInteger(data.since) && data.since >= 0 ? data.since : 0
       const result = await env.DB.prepare('SELECT id, author, text, created_at AS createdAt FROM demo_messages WHERE room_id = ? AND id > ? ORDER BY id ASC LIMIT 100').bind(member.room_id, since).all()
       const meetings = await env.DB.prepare('SELECT m.id, m.place, m.note, m.starts_at AS startsAt, m.owner_token_hash = ? AS isOwner, (SELECT COUNT(*) FROM demo_meeting_attendees a WHERE a.meeting_id = m.id) AS going, EXISTS(SELECT 1 FROM demo_meeting_attendees a WHERE a.meeting_id = m.id AND a.token_hash = ?) AS mine FROM demo_meetings m WHERE m.room_id = ?').bind(tokenHash, tokenHash, member.room_id).all()
-      return reply({ messages: result.results, meetings: meetings.results, expiresAt: member.expires_at })
+      const attachments = await env.DB.prepare('SELECT id, name, mime, size FROM demo_attachments WHERE room_id = ?').bind(member.room_id).all()
+      return reply({ messages: result.results, meetings: meetings.results, attachments: attachments.results, expiresAt: member.expires_at })
     } catch {
       return reply({ error: 'Тестовый чат временно недоступен. Попробуй позже.' }, 503)
     }

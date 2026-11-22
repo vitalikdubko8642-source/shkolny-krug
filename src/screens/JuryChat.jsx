@@ -27,6 +27,10 @@ export default function JuryChat({ onBack }) {
   const [mode, setMode] = useState('join')
   const [messages, setMessages] = useState([])
   const [meetings, setMeetings] = useState({})
+  const [attachments, setAttachments] = useState({})
+  const [attachmentFile, setAttachmentFile] = useState(null)
+  const [attachmentConsent, setAttachmentConsent] = useState(false)
+  const [attachmentOpen, setAttachmentOpen] = useState(false)
   const [meetingOpen, setMeetingOpen] = useState(false)
   const [meetingError, setMeetingError] = useState('')
   const [meetingBusy, setMeetingBusy] = useState(false)
@@ -53,6 +57,7 @@ export default function JuryChat({ onBack }) {
       appliedPoll.current = version
       setCurrentTime(Date.now())
       setMeetings(Object.fromEntries((data.meetings || []).map((item) => [item.id, item])))
+      setAttachments(Object.fromEntries((data.attachments || []).map((item) => [item.id, item])))
       if (data.messages.length) {
         cursor.current = Math.max(cursor.current, ...data.messages.map((m) => m.id))
         setMessages((old) => [...new Map([...old, ...data.messages].map((m) => [m.id, m])).values()].sort((a, b) => a.id - b.id))
@@ -98,6 +103,16 @@ export default function JuryChat({ onBack }) {
     try { await call('meeting', { token: session.token, place, startsAt, note }); setMeetingOpen(false); await poll() }
     catch (e) { setMeetingError(e.message || 'Не удалось создать встречу.') } finally { setMeetingBusy(false) }
   }
+  const sendAttachment = async () => {
+    if (!attachmentFile || !attachmentConsent) return
+    if (attachmentFile.size > 1024 * 1024 || !attachmentFile.size) { setError('Файл должен быть размером до 1 МБ.'); return }
+    setBusy(true); setError('')
+    try {
+      const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Не удалось прочитать файл.')); reader.readAsDataURL(attachmentFile) })
+      await call('attachment', { token: session.token, name: attachmentFile.name, mime: attachmentFile.type, data: dataUrl.split(',')[1] })
+      setAttachmentOpen(false); setAttachmentFile(null); setAttachmentConsent(false); await poll()
+    } catch (e) { setError(e.message || 'Не удалось отправить файл.') } finally { setBusy(false) }
+  }
   const toggleMeeting = async (meeting) => {
     setMeetingBusy(true); setError('')
     try { await call('meeting-rsvp', { token: session.token, meetingId: meeting.id, going: !meeting.mine }); await poll() }
@@ -134,16 +149,36 @@ export default function JuryChat({ onBack }) {
         {messages.map((m) => {
           const meeting = m.text.startsWith('::MEET::') ? meetings[m.text.slice(8)] : null
           const isMeetingMessage = m.text.startsWith('::MEET::')
-          return <div key={m.id} className={'msg-wrap' + (m.author === session.nick ? ' own' : '')}><div className="msg"><div className="from">{m.author}</div>{isMeetingMessage ? meeting && <div className="jury-meeting"><span className="jury-meeting-label"><Icon name="pin" /> ВСТРЕЧА</span><b>{meeting.place}</b><span>{new Date(meeting.startsAt).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span>{meeting.note && <span>{meeting.note}</span>}<span>Идут: {meeting.going}</span>{meeting.startsAt <= currentTime ? <small>Встреча прошла</small> : meeting.isOwner ? <small>Ты организатор и идёшь на встречу</small> : <button className="mini-btn" disabled={meetingBusy} onClick={() => toggleMeeting(meeting)}>{meeting.mine ? 'Не пойду' : 'Я иду'}</button>}</div> : <div className="text">{m.text}</div>}<div className="meta"><span className="tm">{new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span></div></div></div>
+          const isFile = m.text.startsWith('::FILE::')
+          const file = isFile ? attachments[m.text.slice(8)] : null
+          return <div key={m.id} className={'msg-wrap' + (m.author === session.nick ? ' own' : '')}><div className="msg"><div className="from">{m.author}</div>{isMeetingMessage ? meeting && <div className="jury-meeting"><span className="jury-meeting-label"><Icon name="pin" /> ВСТРЕЧА</span><b>{meeting.place}</b><span>{new Date(meeting.startsAt).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span>{meeting.note && <span>{meeting.note}</span>}<span>Идут: {meeting.going}</span>{meeting.startsAt <= currentTime ? <small>Встреча прошла</small> : meeting.isOwner ? <small>Ты организатор и идёшь на встречу</small> : <button className="mini-btn" disabled={meetingBusy} onClick={() => toggleMeeting(meeting)}>{meeting.mine ? 'Не пойду' : 'Я иду'}</button>}</div> : isFile ? file && <JuryFileMessage file={file} token={session.token} /> : <div className="text">{m.text}</div>}<div className="meta"><span className="tm">{new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span></div></div></div>
         })}
         <div ref={bottom} />
       </div>
       {error && <p className="jury-error jury-send-error" role="alert">{error}</p>}
-      <form className="composer jury-composer" onSubmit={send}><button className="icon-btn plus" type="button" aria-label="Назначить встречу" onClick={() => { setMeetingError(''); setMeetingOpen(true) }}><Icon name="plus" /></button><textarea aria-label="Сообщение" value={text} onChange={(e) => setText(e.target.value)} maxLength={500} placeholder="Сообщение" rows={1} /><button className="send" type="submit" aria-label="Отправить" disabled={busy || !text.trim()}><Icon name="send" /></button></form>
+      <form className="composer jury-composer" onSubmit={send}><button className="icon-btn plus" type="button" aria-label="Добавить" onClick={() => setAttachmentOpen(true)}><Icon name="plus" /></button><textarea aria-label="Сообщение" value={text} onChange={(e) => setText(e.target.value)} maxLength={500} placeholder="Сообщение" rows={1} /><button className="send" type="submit" aria-label="Отправить" disabled={busy || !text.trim()}><Icon name="send" /></button></form>
       {!session.jury && <button className="jury-leave" onClick={leave}>Выйти из комнаты</button>}
       {meetingOpen && <JuryMeetingForm onClose={() => setMeetingOpen(false)} onCreate={createMeeting} busy={meetingBusy} error={meetingError} currentTime={currentTime} />}
+      {attachmentOpen && <Sheet title="Добавить" onClose={() => { setAttachmentOpen(false); setError('') }}><button className="btn ghost" onClick={() => { setAttachmentOpen(false); setMeetingError(''); setMeetingOpen(true) }}>Назначить встречу</button><label className="jury-file-pick">{attachmentFile ? attachmentFile.name : 'Выбрать файл'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,application/pdf,text/plain,application/zip,.docx,.pptx,.xlsx" onChange={e => { setAttachmentFile(e.target.files?.[0] || null); setError('') }} /></label><p>Изображения, видео и документы до 1 МБ. В тест загружай только вымышленные материалы без настоящих имён, телефонов и изображений людей.</p><label className="check"><input type="checkbox" checked={attachmentConsent} onChange={e => setAttachmentConsent(e.target.checked)} />Файл не содержит личных данных</label>{error && <p className="jury-error" role="alert">{error}</p>}<button className="btn" disabled={!attachmentFile || !attachmentConsent || busy} onClick={sendAttachment}>{busy ? 'Отправляем…' : 'Отправить файл'}</button></Sheet>}
     </>
   )
+}
+
+function JuryFileMessage({ file, token }) {
+  const [url, setUrl] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
+  const open = async () => {
+    if (url) return
+    setBusy(true); setError('')
+    try {
+      const data = await call('attachment-get', { token, id: file.id })
+      const binary = atob(data.data), bytes = Uint8Array.from(binary, c => c.charCodeAt(0))
+      setUrl(URL.createObjectURL(new Blob([bytes], { type: data.mime })))
+    } catch (e) { setError(e.message || 'Не удалось загрузить файл.') } finally { setBusy(false) }
+  }
+  return <div className="jury-file"><b>{file.name}</b><small>{Math.ceil(file.size / 1024)} КБ</small>{!url ? <button className="mini-btn" onClick={open} disabled={busy}>{busy ? 'Загружаем…' : 'Открыть файл'}</button> : <>{file.mime.startsWith('image/') && <img src={url} alt={file.name} />}{file.mime.startsWith('video/') && <video src={url} controls playsInline preload="metadata" />}<a href={url} download={file.name}>Скачать</a></>}{error && <small role="alert">{error}</small>}</div>
 }
 
 function JuryMeetingForm({ onClose, onCreate, busy, error, currentTime }) {

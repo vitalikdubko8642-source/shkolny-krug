@@ -26,6 +26,7 @@ export const defaultSettings = {
   wall: 'theme',        // обои чата
   textSize: 'md',       // sm | md | lg | xl
   dmFrom: 'all',        // кто может прислать запрос в личку: all | class | nobody
+  dmRequireApproval: true,
   showClass: true,
   showInterests: true,
   showOnline: true,
@@ -44,6 +45,7 @@ const initial = {
   messages: demo.messages,
   unread: { news: 1, class: 3, guitar: 2, new: 1 },
   customChats: [],       // группы, которые создал пользователь
+  archivedChats: [],
   friends: [],           // с кем есть личная переписка (обе стороны согласились)
   outgoing: [],          // кому мы отправили запрос
   incoming: demo.incomingRequests,
@@ -156,6 +158,7 @@ export default function App() {
   // ----- Все чаты: группы школы + созданные + личные -----
   const dmChat = (nick) => ({ id: 'dm:' + nick, type: 'dm', nick, title: nick, folder: 'dm', color: demo.people[nick]?.color })
   const chats = [
+    { id: 'saved', title: 'Избранное', type: 'saved', color: '#578ed2', letter: '★', folder: 'dm', about: 'Твои сохранённые сообщения на этом устройстве.' },
     ...demo.chats.filter((c) => (c.id !== 'class' || s.user?.cls === '9Б') && (c.id !== 'par9' || /^9[А-ЯЁ]$/i.test(s.user?.cls || ''))),
     ...(s.user?.role === 'student' && s.user.cls && s.user.cls !== '9Б' ? [{ id: `class:${s.user.cls}`, title: `${s.user.cls} — наш класс`, type: 'group', color: '#27AE60', letter: s.user.cls, members: 1, folder: 'class', about: 'Демонстрационный чат класса' }] : []),
     ...(s.user?.role === 'student' && s.user.cls && !/^9[А-ЯЁ]$/i.test(s.user.cls) ? [{ id: `parallel:${parseInt(s.user.cls, 10)}`, title: `Параллель ${parseInt(s.user.cls, 10)}-х`, type: 'group', color: '#9B51E0', letter: String(parseInt(s.user.cls, 10)), members: 1, folder: 'class', about: 'Демонстрационный чат параллели' }] : []),
@@ -164,6 +167,16 @@ export default function App() {
   ]
   const groups = chats.filter((c) => c.type === 'group')
   const visibleIncoming = s.incoming.filter((r) => !s.blocked.includes(r.nick) && settings.dmFrom !== 'nobody' && (settings.dmFrom !== 'class' || demo.people[r.nick]?.cls === s.user?.cls))
+
+  useEffect(() => {
+    if (settings.dmRequireApproval || !visibleIncoming.length || s.user?.role !== 'student') return
+    patch((prev) => {
+      const accepted = prev.incoming.filter((r) => !prev.blocked.includes(r.nick) && settings.dmFrom !== 'nobody' && (settings.dmFrom !== 'class' || demo.people[r.nick]?.cls === prev.user?.cls))
+      const messages = { ...prev.messages }
+      for (const r of accepted) if (!messages['dm:' + r.nick]) messages['dm:' + r.nick] = [{ id: 'auto-' + r.nick, from: r.nick, text: r.text || 'Привет!', time: now() }]
+      return { incoming: prev.incoming.filter((r) => !accepted.some((a) => a.nick === r.nick)), friends: [...new Set([...prev.friends, ...accepted.map((r) => r.nick)])], messages }
+    })
+  }, [settings.dmRequireApproval, settings.dmFrom, s.incoming, s.user?.role])
 
   // ----- Действия -----
   const a = {
@@ -287,6 +300,9 @@ export default function App() {
         onInvite={(nick) => a.inviteToGroup(id, nick)}
         onGameFinish={(msgId, res) => a.gameFinish(id, msgId, res)}
         toast={toast}
+        archived={(s.archivedChats || []).includes(id)}
+        onArchive={() => { patch((prev) => ({ archivedChats: (prev.archivedChats || []).includes(id) ? prev.archivedChats.filter(x => x !== id) : [...(prev.archivedChats || []), id] })); history.back() }}
+        onSave={(message) => { patch((prev) => ({ messages: { ...prev.messages, saved: [...(prev.messages.saved || []), { id: 'saved-' + crypto.randomUUID(), from: prev.user.nick, own: true, text: message.text, time: now(), createdAt: new Date().toISOString(), forwardedFrom: message.own ? 'Вы' : message.from }] } })); toast('Сохранено в избранном на этом устройстве') }}
       />
     )
   } else if (s.tab === 'profile' && s.profilePage) {
@@ -297,7 +313,7 @@ export default function App() {
       .flatMap((c) => (s.messages[c.id] || []).filter((m) => m.meet && !m.hidden).map((m) => ({ chatId: c.id, chatTitle: c.title, msgId: m.id, meet: m.meet, own: m.own })))
       .sort((x, y) => (y.own ? 1 : 0) - (x.own ? 1 : 0))
     let tab
-    if (s.tab === 'chats') tab = <ChatList user={s.user} chats={chats} messages={s.messages} unread={s.unread} alerts={s.alerts.filter((a) => !a.hidden)} onOpen={a.openChat} onCreateGroup={a.createGroup} onGoEvents={() => patch((prev) => ({ tab: 'events', seenAlerts: prev.alerts.map((a) => a.id) }))} onJury={openJury} />
+    if (s.tab === 'chats') tab = <ChatList user={s.user} chats={chats} archivedChats={s.archivedChats || []} messages={s.messages} unread={s.unread} alerts={s.alerts.filter((a) => !a.hidden)} onOpen={a.openChat} onCreateGroup={a.createGroup} onGoEvents={() => patch((prev) => ({ tab: 'events', seenAlerts: prev.alerts.map((a) => a.id) }))} onJury={openJury} />
     else if (s.tab === 'events') tab = (
       <Events user={s.user} events={s.events} alerts={s.alerts.filter((a) => !a.hidden)} meets={meets} groups={groups} toast={toast}
         onEvent={a.event} onCreateEvent={a.createEvent} onUpdateEvent={a.updateEvent} onDeleteEvent={a.deleteEvent} onAlert={a.alert} onAlertAct={a.alertAct}

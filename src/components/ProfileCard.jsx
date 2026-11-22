@@ -1,4 +1,5 @@
 import Avatar, { Nick } from './Avatar.jsx'
+import ProfileBanner from './ProfileBanner.jsx'
 
 // Карточка «как тебя видят другие». Её же видят ребята, когда нажимают на твой ник.
 // settings решают, что показывать: класс, интересы, «в сети».
@@ -6,6 +7,7 @@ export default function ProfileCard({ user, settings }) {
   const role = user.role === 'teacher' ? 'учитель' : settings.showClass && user.cls ? `ученик, ${user.cls}` : 'ученик'
   return (
     <div className={'card-view' + (user.cardBg ? ' bg-' + user.cardBg : '')}>
+      <ProfileBanner id={user.banner} />
       <div className="top">
         <Avatar p={user} />
         <div>

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import Avatar, { Nick } from '../components/Avatar.jsx'
 import ProfileCard from '../components/ProfileCard.jsx'
+import ProfileBanner, { PROFILE_BANNERS } from '../components/ProfileBanner.jsx'
 import Sheet from '../components/Sheet.jsx'
 import { hasPersonalData } from '../logic/personal.js'
 import { INTERESTS } from './Register.jsx'
@@ -73,6 +74,7 @@ export default function Profile({ user, settings, page, onPage, onUser, onSettin
       <div className="topbar"><h1>Профиль</h1>{!isTeacher && <button className="coins" onClick={() => onPage('shop')}>{user.coins ?? 0} 🪙</button>}</div>
       <div className="scroll">
         <div className="p-head">
+          <ProfileBanner id={user.banner} />
           <Avatar p={user} />
           <b><Nick p={user} /></b>
           <span className="st">{user.status || (isTeacher ? 'Учитель' : `Ученик, ${user.cls}`)}</span>
@@ -105,6 +107,26 @@ function MePage({ user, settings, onUser, onBack }) {
   const [status, setStatus] = useState(user.status || '')
   const [bio, setBio] = useState(user.bio || '')
   const [pendingPersonal, setPendingPersonal] = useState(null)
+  const [avatarError, setAvatarError] = useState('')
+  const uploadAvatar = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) { setAvatarError('Выбери JPG, PNG или WebP размером до 5 МБ.'); return }
+    const url = URL.createObjectURL(file)
+    try {
+      const image = new Image()
+      image.src = url
+      await image.decode()
+      const side = Math.min(image.width, image.height)
+      const canvas = document.createElement('canvas')
+      canvas.width = 256; canvas.height = 256
+      canvas.getContext('2d').drawImage(image, (image.width - side) / 2, (image.height - side) / 2, side, side, 0, 0, 256, 256)
+      onUser({ avatarImage: canvas.toDataURL('image/webp', 0.82) })
+      setAvatarError('')
+    } catch { setAvatarError('Не удалось открыть изображение. Попробуй другой файл.') }
+    finally { URL.revokeObjectURL(url) }
+  }
   const savePublic = (key, value) => {
     if (value === (user[key] || '')) return
     if (hasPersonalData(value)) setPendingPersonal({ key, value })
@@ -119,8 +141,17 @@ function MePage({ user, settings, onUser, onBack }) {
       <p className="group-title">Так тебя видят другие</p>
       <ProfileCard user={{ ...user, nick: nickOk ? nick : user.nick }} settings={settings} />
 
+      <p className="group-title">Баннер профиля</p>
+      <div className="profile-banner-grid">
+        {PROFILE_BANNERS.map((art) => <button key={art.id} type="button" className={'banner-choice' + ((user.banner || 'coast') === art.id ? ' on' : '')} aria-pressed={(user.banner || 'coast') === art.id} onClick={() => onUser({ banner: art.id })}><ProfileBanner id={art.id} /><span>{art.title}</span></button>)}
+      </div>
+
       <p className="group-title">Аватар</p>
       <div className="group pad" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <label className="avatar-upload">Загрузить изображение<input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadAvatar} /></label>
+        {user.avatarImage && <button className="mini-btn" onClick={() => onUser({ avatarImage: null })}>Убрать изображение</button>}
+        {avatarError && <p className="err" role="alert">{avatarError}</p>}
+        <p className="fine">Для конкурсного прототипа выбирай вымышленные изображения без личных данных. Аватар пока хранится только в этом браузере.</p>
         <div className="swatches">
           {AVATAR_COLORS.map((c) => (
             <button key={c} className={'sw' + (user.color === c ? ' on' : '')} style={{ background: c }} onClick={() => onUser({ color: c })} aria-label="Цвет" />
@@ -237,7 +268,8 @@ function PrivacyPage({ settings, onSettings, blocked = [], onUnblock, onBack }) 
           <Row key={id} title={title} onClick={() => onSettings({ dmFrom: id })} right={<span className={'radio' + (settings.dmFrom === id ? ' on' : '')} />} />
         ))}
       </div>
-      <p className="group-note">Даже если запрос пришёл, переписка начнётся, только когда ты его примешь.</p>
+      <div className="group"><Row title="Сначала спрашивать разрешение" sub="Когда выключено, разрешённые собеседники могут написать сразу" onClick={flip('dmRequireApproval')} right={<Toggle on={settings.dmRequireApproval} />} /></div>
+      <p className="group-note">В демоверсии выбор действует на вымышленные запросы в этом браузере; настоящие личные чаты ещё не подключены.</p>
 
       <p className="group-title">Что видят другие</p>
       <div className="group">

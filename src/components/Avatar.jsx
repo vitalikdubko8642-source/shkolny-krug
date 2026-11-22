@@ -7,7 +7,7 @@ export default function Avatar({ p, color, text, emoji, frame, size = '' }) {
   const f = frame ?? p?.frame
   return (
     <div className={'avatar ' + size + (f ? ' frame-' + f : '')} style={{ background: c }}>
-      {e || t}
+      {p?.avatarImage ? <img src={p.avatarImage} alt="" /> : e || t}
     </div>
   )
 }

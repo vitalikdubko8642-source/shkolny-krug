@@ -512,6 +512,33 @@ body { background: #edf2f5; letter-spacing: -.01em; }
 .p-head { margin: 12px 14px 18px; padding: 25px 16px 20px; border: 1px solid var(--line); border-radius: 22px; background: var(--bg-2); }
 .p-head .avatar { outline: 3px solid color-mix(in srgb, var(--accent) 20%, transparent); }
 .p-head .link-btn { margin-top: 9px; padding: 7px 14px; border-radius: 18px; background: var(--nav-active); }
+.p-head { position: relative; overflow: hidden; padding-top: 105px; }
+.p-head > .profile-banner { position: absolute; top: 0; left: 0; width: 100%; height: 120px; }
+.p-head > :not(.profile-banner) { position: relative; }
+.p-head .avatar { border: 4px solid var(--bg-2); outline: none; }
+.profile-banner { display: block; width: 100%; height: 112px; object-fit: cover; }
+.card-view { overflow: hidden; }
+.card-view > .profile-banner { width: calc(100% + 32px); max-width: none; margin: -16px -16px 0; height: 108px; }
+.card-view .top { position: relative; margin-top: -38px; align-items: start; }
+.card-view .top > div:not(.avatar) { padding-top: 38px; }
+.card-view .top .avatar { flex-shrink: 0; border: 3px solid var(--bg-2); }
+.profile-banner-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 12px 20px; }
+.banner-choice { overflow: hidden; padding: 0; color: var(--text); background: var(--bg-2); border: 2px solid transparent; border-radius: 14px; text-align: left; cursor: pointer; transition: transform .16s ease, border-color .16s ease; }
+.banner-choice:active { transform: scale(.97); }
+.banner-choice.on { border-color: var(--accent); }
+.banner-choice .profile-banner { height: 70px; }
+.banner-choice span { display: block; padding: 8px 10px; font-size: 13px; font-weight: 600; }
+.avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.avatar-upload { display: inline-flex; align-items: center; min-height: 42px; color: var(--accent); font-weight: 600; cursor: pointer; }
+.avatar-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.avatar-upload:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+.jury-file-pick { display: flex; align-items: center; min-height: 46px; margin: 12px 0; padding: 10px 14px; border: 1px dashed var(--accent); border-radius: 12px; color: var(--accent); cursor: pointer; overflow-wrap: anywhere; }
+.jury-file-pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.jury-file-pick:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+.jury-file { display: grid; gap: 6px; min-width: 165px; max-width: 260px; overflow-wrap: anywhere; }
+.jury-file small { color: var(--text-2); }
+.jury-file img, .jury-file video { width: 100%; max-height: 240px; object-fit: contain; border-radius: 10px; }
+.jury-file a { color: var(--accent); font-weight: 600; }
 .group { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 18px; }
 .row { min-height: 60px; }
 .row .ri { border-radius: 12px; }

@@ -30,7 +30,7 @@ const messageDay = (m) => !m.createdAt ? 'Демо-сообщения' : message
 //   своё  — реакция, ответить, изменить, копировать, удалить.
 // «+» у поля ввода — позвать на встречу или запустить мини-игру.
 // list — сообщения чата; onChange(fn) — изменить их (fn получает старый список).
-export default function Chat({ chat, user, settings, list, onBack, onChange, personState, onRequest, onOpenDm, onBlock, onInvite, onGameFinish, toast }) {
+export default function Chat({ chat, user, settings, list, onBack, onChange, personState, onRequest, onOpenDm, onBlock, onInvite, onGameFinish, toast, onSave, onArchive, archived }) {
   const [text, setText] = useState('')
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [recordingOpen, setRecordingOpen] = useState(false)
@@ -52,6 +52,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
   const input = useRef(null)
   const isChannel = chat.type === 'channel'
   const isDm = chat.type === 'dm'
+  const isSaved = chat.type === 'saved'
   const dmPerson = isDm ? people[chat.nick] : null
 
   useEffect(() => { bottom.current?.scrollIntoView({ block: 'end' }) }, [list.length, typing])
@@ -82,6 +83,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
 
   // Кто-нибудь из (выдуманных) ребят отвечает через пару секунд
   const botAnswer = (message = '') => {
+    if (isSaved) return
     if (!isDm && ((chat.own && !chat.invited?.length) || chat.id.startsWith('class:') || chat.id.startsWith('parallel:'))) return
     if (hasPersonalData(message) || /дурак|урод|травл/i.test(message)) return
     let who, phrase
@@ -141,6 +143,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
     if (what === 'report') setReport(m)
     if (what === 'delete') setConfirmDel(m)
     if (what === 'dm') writePersonally(m.from)
+    if (what === 'save') onSave(m)
   }
 
   const sendReport = () => {
@@ -163,10 +166,10 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
   }
 
   const canDm = (m) => !isChannel && !isDm && !m.own && people[m.from]?.cls
-  const actions = menu && (menu.own
+  const actions = menu && [...(menu.own
     ? [['reply', 'reply', 'Ответить'], !menu.meet && !menu.game && !menu.media && ['edit', 'edit', 'Изменить'], !menu.media && ['copy', 'copy', 'Копировать'], ['delete', 'trash', 'Удалить', true]]
     : [!isChannel && ['reply', 'reply', 'Ответить'], !menu.media && ['copy', 'copy', 'Копировать'], canDm(menu) && ['dm', 'mail', 'Написать лично'], ['hide', 'eyeoff', 'Скрыть'], ['report', 'flag', 'Пожаловаться', true]]
-  ).filter(Boolean)
+  ), !isSaved && menu.text && !menu.media && !menu.meet && !menu.game && ['save', 'copy', 'Сохранить в избранном']].filter(Boolean)
 
   const gameMsg = game && list.find((m) => m.id === game.msgId)
   if (gameMsg) {
@@ -191,7 +194,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
             <div className="t">{isDm ? <Nick p={dmPerson} /> : chat.title}</div>
             {typing
               ? <div className="typing">{isDm ? 'печатает…' : `${people[typing]?.nick} печатает…`}</div>
-              : <div className="s">{isDm ? 'личная переписка' : isChannel ? `${chat.members} подписчиков` : memberCount(chat.members)}</div>}
+              : <div className="s">{isSaved ? 'Личные заметки на этом устройстве' : isDm ? 'личная переписка' : isChannel ? `${chat.members} подписчиков` : memberCount(chat.members)}</div>}
           </div>
         </button>
         <button className="icon-btn" aria-label="О чате" onClick={() => setSheet('info')}><Icon name="more" /></button>
@@ -223,6 +226,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
                     </span>
                   )}
                   {m.reply && <div className="quote"><b>{m.reply.nick}</b><span>{m.reply.text}</span></div>}
+                  {m.forwardedFrom && <div className="quote"><b>От: {m.forwardedFrom}</b></div>}
 
                   {m.media && <button className="media-menu" aria-label="Действия с записью" onClick={(e) => { e.stopPropagation(); setMenu(m) }}><Icon name="more" /></button>}
 
@@ -278,7 +282,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
             </div>
           )}
           <div className="composer">
-            {!editing && <button className="icon-btn plus" aria-label="Встреча или игра" onClick={() => setSheet('plus')}><Icon name="plus" /></button>}
+            {!editing && !isSaved && <button className="icon-btn plus" aria-label="Встреча или игра" onClick={() => setSheet('plus')}><Icon name="plus" /></button>}
             <button className="icon-btn emoji-toggle" aria-label="Эмодзи" aria-expanded={emojiOpen} onClick={() => { setEmojiOpen(!emojiOpen); setRecordingOpen(false) }}><Smile size={22} /></button>
             <textarea
               ref={input} rows={1} value={text} placeholder="Сообщение"
@@ -357,19 +361,20 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
             <>
               <div className="info-head">
                 <Avatar color={chat.color} text={chat.letter} />
-                <div><b>{chat.title}</b><span>{isChannel ? `${chat.members} подписчиков` : memberCount(chat.members)}</span></div>
+                <div><b>{chat.title}</b><span>{isSaved ? 'Только на этом устройстве' : isChannel ? `${chat.members} подписчиков` : memberCount(chat.members)}</span></div>
               </div>
               <p style={{ color: 'var(--text)' }}>{chat.about}</p>
-              {!isChannel && (
+              {!isChannel && !isSaved && (
                 <div className="menu-list">
                   {chat.own && <button className="menu-item" onClick={() => setSheet('invite')}><Icon name="user" />Пригласить участника</button>}
                   <button className="menu-item" onClick={() => setSheet('meet')}><Icon name="pin" />Позвать на встречу</button>
                   <button className="menu-item" onClick={startGame}><Icon name="game" />Мини-игра «Быстрый счёт»</button>
                 </div>
               )}
-              <p className="sheet-note">{isChannel ? 'Здесь пишет только администрация школы.' : 'В этом чате нет учителей. Если что-то задело — нажми на сообщение и пожалуйся.'}</p>
+              {!isSaved && <p className="sheet-note">{isChannel ? 'Здесь пишет только администрация школы.' : 'В этом чате нет учителей. Если что-то задело — нажми на сообщение и пожалуйся.'}</p>}
             </>
           )}
+          {!isSaved && <div className="menu-list"><button className="menu-item" onClick={onArchive}><Icon name="download" />{archived ? 'Вернуть из архива' : 'Убрать в архив'}</button></div>}
         </Sheet>
       )}
       {sheet === 'block' && (

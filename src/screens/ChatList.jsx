@@ -9,7 +9,7 @@ import { findSimilar, checkNew } from '../logic/moderation.js'
 const GROUP_COLORS = ['#F2994A', '#9B51E0', '#27AE60', '#EB5757', '#2F80ED', '#56CCF2', '#BB6BD9']
 
 // Список чатов как в Telegram: плашка срочного, папки, строки чатов, кнопка «создать группу».
-export default function ChatList({ user, chats, messages, unread, alerts, onOpen, onCreateGroup, onGoEvents }) {
+export default function ChatList({ user, chats, archivedChats = [], messages, unread, alerts, onOpen, onCreateGroup, onGoEvents }) {
   const [folder, setFolder] = useState('all')
   const [q, setQ] = useState('')
   const [creating, setCreating] = useState(false)
@@ -43,7 +43,8 @@ export default function ChatList({ user, chats, messages, unread, alerts, onOpen
 
   const alert = alerts.find((a) => !a.resolved)
   const list = chats
-    .filter((c) => folder === 'all' || c.folder === folder)
+    .filter((c) => folder === 'archive' ? archivedChats.includes(c.id) : !archivedChats.includes(c.id))
+    .filter((c) => folder === 'archive' || folder === 'all' || c.folder === folder)
     .filter((c) => c.title.toLowerCase().includes(q.toLowerCase()) || (messages[c.id] || []).some((m) => !m.hidden && m.text?.toLowerCase().includes(q.toLowerCase())))
     .map((c) => ({ c, msgs: messages[c.id] || [] }))
     .sort((a, b) => (b.c.pinned ? 1 : 0) - (a.c.pinned ? 1 : 0) || (b.msgs.at(-1)?.time || '').localeCompare(a.msgs.at(-1)?.time || ''))
@@ -69,11 +70,13 @@ export default function ChatList({ user, chats, messages, unread, alerts, onOpen
           {folders.map((f) => (
             <button key={f.id} className={folder === f.id ? 'on' : ''} aria-pressed={folder === f.id} onClick={() => setFolder(f.id)}>{f.title}</button>
           ))}
+          <button className={folder === 'archive' ? 'on' : ''} aria-pressed={folder === 'archive'} onClick={() => setFolder('archive')}>Архив{archivedChats.length ? ` ${archivedChats.length}` : ''}</button>
         </div>
         {moreFolders && <button className="folders-more" aria-label="Показать остальные папки" onClick={() => foldersRef.current?.scrollBy({ left: 160, behavior: 'smooth' })}><Icon name="chevron" /></button>}
       </div>
       <div className="scroll" style={{ paddingBottom: 80 }}>
         {list.length === 0 && q.trim() && <div className="empty"><b>Ничего не нашли</b><span>Попробуй другой запрос.</span></div>}
+        {list.length === 0 && !q.trim() && folder === 'archive' && <div className="empty"><b>Архив пуст</b><span>Открой информацию о чате, чтобы убрать его в архив.</span></div>}
         {list.length === 0 && !q.trim() && folder === 'dm' && (
           <div className="empty"><Icon name="mail" /><b>Личных чатов пока нет</b><span>Найди ребят во вкладке «Друзья» и отправь запрос. Чат появится, когда его примут.</span></div>
         )}
