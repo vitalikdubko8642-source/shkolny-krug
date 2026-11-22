@@ -8,11 +8,17 @@ import { MediaPlayer } from '../components/MediaMessage.jsx'
 import { getRecording, deleteRecording } from '../mediaStore.js'
 import ProfileCard from '../components/ProfileCard.jsx'
 import { normalizeBanner } from '../components/ProfileBanner.jsx'
+import Game from './Game.jsx'
 
 const API = import.meta.env.VITE_JURY_API || 'https://shkolny-krug-jury-demo.okla-school-8642.workers.dev'
 const KEY = 'shkolny-krug-jury-session-v1'
 const EMOJI = ['😀', '😄', '😂', '🙂', '😉', '😍', '😎', '🥳', '🤔', '😢', '🤝', '👍', '👏', '❤️', '💙', '✨', '🔥', '🎉', '⚽', '🎮', '🚀', '💡']
 const REACTIONS = ['👍', '❤️', '😂', '🔥', '😮', '😢']
+const GIFTS = [
+  { id: 'rocket', title: 'Ракета', price: 25 }, { id: 'gamepad', title: 'Игровой пульт', price: 35 }, { id: 'headphones', title: 'Наушники', price: 30 },
+  { id: 'basketball', title: 'Золотой мяч', price: 40 }, { id: 'star', title: 'Звезда', price: 15 }, { id: 'planet', title: 'Планета', price: 45 },
+]
+const BUBBLES = [{ id: 'default', title: 'Обычный', price: 0 }, { id: 'frost', title: 'Лёд', price: 20 }, { id: 'aurora', title: 'Сияние', price: 30 }, { id: 'sunset', title: 'Закат', price: 25 }]
 const getSession = () => { try { return JSON.parse(localStorage.getItem('shkolny-krug-jury-profile-v1') || sessionStorage.getItem(KEY)) } catch { return null } }
 const saveSession = (session) => { try { sessionStorage.setItem(KEY, JSON.stringify(session)) } catch { /* usable until tab closes */ } }
 const clearSession = () => { try { sessionStorage.removeItem(KEY) } catch { /* ignore */ } }
@@ -27,7 +33,7 @@ async function call(action, payload) {
   return result
 }
 
-export default function JuryChat({ onBack, onSave, profile }) {
+export default function JuryChat({ onBack, onSave, profile, onWalletChange }) {
   const [session, setSession] = useState(getSession)
   const [nick, setNick] = useState('')
   const [code, setCode] = useState('')
@@ -36,12 +42,19 @@ export default function JuryChat({ onBack, onSave, profile }) {
   const [meetings, setMeetings] = useState({})
   const [attachments, setAttachments] = useState({})
   const [reactions, setReactions] = useState([])
+  const [styles, setStyles] = useState({})
   const [menu, setMenu] = useState(null)
   const [editing, setEditing] = useState(null)
   const [replyTo, setReplyTo] = useState(null)
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [person, setPerson] = useState(null)
   const [personBusy, setPersonBusy] = useState(false)
+  const [giftOpen, setGiftOpen] = useState(false)
+  const [bubbleOpen, setBubbleOpen] = useState(false)
+  const [giftAnon, setGiftAnon] = useState(false)
+  const [giftBusy, setGiftBusy] = useState(false)
+  const [giftError, setGiftError] = useState('')
+  const [game, setGame] = useState(null)
   const [hidden, setHidden] = useState(() => { try { return JSON.parse(localStorage.getItem('jury-hidden-' + (getSession()?.nick || 'none')) || '[]') } catch { return [] } })
   const [attachmentFile, setAttachmentFile] = useState(null)
   const [attachmentConsent, setAttachmentConsent] = useState(false)
@@ -75,6 +88,7 @@ export default function JuryChat({ onBack, onSave, profile }) {
       setMeetings(Object.fromEntries((data.meetings || []).map((item) => [item.id, item])))
       setAttachments(Object.fromEntries((data.attachments || []).map((item) => [item.id, item])))
       setReactions(data.reactions || [])
+      setStyles(Object.fromEntries((data.styles || []).map(item => [item.nick, item.bubble])))
       setMessages(data.messages)
       setConnection('')
     } catch (e) { if (activeToken.current === sessionToken && version >= appliedPoll.current) setConnection(e.status === 401 ? e.message : 'Нет связи с чатом. Пытаемся подключиться снова.') }
@@ -165,10 +179,36 @@ export default function JuryChat({ onBack, onSave, profile }) {
     setMenu(null)
   }
   const openPerson = async (nick) => {
-    setPersonBusy(true); setPerson({ nick }); setError('')
-    try { setPerson(await call('profile-get', { token: session.token, nick })) }
+    setPersonBusy(true); setPerson({ nick }); setError(''); setGiftOpen(false); setBubbleOpen(false); setGiftError('')
+    try { const loaded = await call('profile-get', { token: session.token, nick }); setPerson(current => current?.nick === nick ? loaded : current); onWalletChange?.(loaded.viewerCoins) }
     catch (e) { setPerson(null); setError(e.message) } finally { setPersonBusy(false) }
   }
+  const sendGift = async (gift) => {
+    setGiftBusy(true); setGiftError('')
+    try { const nick = person.nick; await call('gift-send', { token: session.token, nick, type: gift.id, anonymous: giftAnon }); const loaded = await call('profile-get', { token: session.token, nick }); setPerson(current => current?.nick === nick ? loaded : current); onWalletChange?.(loaded.viewerCoins); setGiftOpen(false); setGiftAnon(false) }
+    catch (e) { setGiftError(e.message) } finally { setGiftBusy(false) }
+  }
+  const toggleGift = async (gift) => {
+    setGiftBusy(true); setGiftError('')
+    try { const nick = person.nick; await call('gift-visibility', { token: session.token, id: gift.id, hidden: !gift.hidden }); const loaded = await call('profile-get', { token: session.token, nick }); setPerson(current => current?.nick === nick ? loaded : current) }
+    catch (e) { setGiftError(e.message) } finally { setGiftBusy(false) }
+  }
+  const selectBubble = async (bubble) => {
+    setGiftBusy(true); setGiftError('')
+    try {
+      if (bubble.id !== 'default' && !person.ownedBubbles.includes(bubble.id)) await call('bubble-buy', { token: session.token, bubble: bubble.id })
+      await call('bubble-equip', { token: session.token, bubble: bubble.id })
+      const loaded = await call('profile-get', { token: session.token, nick: session.nick })
+      setPerson(current => current?.nick === session.nick ? loaded : current); onWalletChange?.(loaded.viewerCoins); await poll()
+    } catch (e) { setGiftError(e.message) } finally { setGiftBusy(false) }
+  }
+  const finishGame = async (result) => {
+    const roundId = game.id; setGame(null); setError('')
+    try { const reward = await call('game-reward', { token: session.token, roundId, coins: result.coins }); onWalletChange?.(reward.coins); setError(reward.awarded ? `Начислено монет: ${reward.awarded}` : 'За этот раунд монеты не начислены.') }
+    catch (e) { setError('Не удалось начислить монеты: ' + e.message) }
+  }
+
+  if (game) return <Game mode={game.mode} title={game.mode === 'sequence' ? 'Продолжи ряд' : 'Быстрый счёт'} chatTitle="9В — наш класс" players={['pixel_cat', 'sova_tima']} user={{ ...profile, nick: session.nick }} onExit={() => setGame(null)} onFinish={finishGame} />
 
   if (!session) return (
     <>
@@ -191,7 +231,7 @@ export default function JuryChat({ onBack, onSave, profile }) {
 
   return (
     <>
-      <div className="topbar"><button className="icon-btn" aria-label="Назад" onClick={onBack}><Icon name="back" /></button><div className="jury-title"><h1>{session.jury ? '9В — наш класс' : 'Тестовый чат'}</h1><span>{session.jury ? 'Демонстрационный чат жюри' : `Ник: ${session.nick} · комната на 24 часа`}</span></div>{!session.jury && <button className="jury-code-btn" onClick={() => setShowCode(!showCode)} aria-expanded={showCode}>Код</button>}</div>
+      <div className="topbar"><button className="icon-btn" aria-label="Назад" onClick={onBack}><Icon name="back" /></button><div className="jury-title"><h1>{session.jury ? '9В — наш класс' : 'Тестовый чат'}</h1><span>{session.jury ? 'Демонстрационный чат жюри' : `Ник: ${session.nick} · комната на 24 часа`}</span></div>{session.jury ? <button className="icon-btn" aria-label="Мой профиль в чате" onClick={() => openPerson(session.nick)}><Icon name="user" /></button> : <button className="jury-code-btn" onClick={() => setShowCode(!showCode)} aria-expanded={showCode}>Код</button>}</div>
       {showCode && <div className="jury-invite"><b>Код приглашения</b><span>Передай его только участникам проверки.</span><code>{session.code}</code><button onClick={copy}>Скопировать код</button>{copyStatus && <small role="status">{copyStatus}</small>}</div>}
       {connection && <div className="jury-connection" role="status">{connection}</div>}
       {profileError && <div className="jury-connection" role="status">{profileError}</div>}
@@ -204,7 +244,7 @@ export default function JuryChat({ onBack, onSave, profile }) {
           const isFile = m.text.startsWith('::FILE::')
           const file = isFile ? attachments[m.text.slice(8)] : null
           const original = messages.find(item => item.id === m.replyId)
-          return <div key={m.id} className={'msg-wrap' + (m.author === session.nick ? ' own' : '')}><div className="msg jury-message" role="button" tabIndex={0} onClick={() => setMenu(m)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setMenu(m) } }}><button className="from jury-author" onClick={e => { e.stopPropagation(); openPerson(m.author) }}>{m.author}</button>{m.replyId && <div className="quote"><b>{original?.author || 'Сообщение'}</b><span>{original?.text || 'Сообщение удалено'}</span></div>}{isMeetingMessage ? meeting && <div className="jury-meeting"><span className="jury-meeting-label"><Icon name="pin" /> ВСТРЕЧА</span><b>{meeting.place}</b><span>{new Date(meeting.startsAt).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span>{meeting.note && <span>{meeting.note}</span>}<span>Идут: {meeting.going}</span>{meeting.startsAt <= currentTime ? <small>Встреча прошла</small> : meeting.isOwner ? <small>Ты организатор и идёшь на встречу</small> : <button className="mini-btn" disabled={meetingBusy} onClick={(e) => { e.stopPropagation(); toggleMeeting(meeting) }}>{meeting.mine ? 'Не пойду' : 'Я иду'}</button>}</div> : isFile ? file && <JuryFileMessage file={file} token={session.token} /> : <div className="text">{m.text}</div>}{reactions.filter(r => r.messageId === m.id).length > 0 && <div className="reacts">{reactions.filter(r => r.messageId === m.id).map(r => <span className={'react' + (r.mine ? ' mine' : '')} key={r.reaction}>{r.reaction} {r.count}</span>)}</div>}<div className="meta"><span className="tm">{m.edited ? 'изменено ' : ''}{new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span></div></div></div>
+          return <div key={m.id} className={'msg-wrap' + (m.author === session.nick ? ' own' : '')}><div className={'msg jury-message jury-bubble-' + (styles[m.author] || 'default')} role="button" tabIndex={0} onClick={() => setMenu(m)} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setMenu(m) } }}><button className="from jury-author" onClick={e => { e.stopPropagation(); openPerson(m.author) }}>{m.author}</button>{m.replyId && <div className="quote"><b>{original?.author || 'Сообщение'}</b><span>{original?.text || 'Сообщение удалено'}</span></div>}{isMeetingMessage ? meeting && <div className="jury-meeting"><span className="jury-meeting-label"><Icon name="pin" /> ВСТРЕЧА</span><b>{meeting.place}</b><span>{new Date(meeting.startsAt).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span>{meeting.note && <span>{meeting.note}</span>}<span>Идут: {meeting.going}</span>{meeting.startsAt <= currentTime ? <small>Встреча прошла</small> : meeting.isOwner ? <small>Ты организатор и идёшь на встречу</small> : <button className="mini-btn" disabled={meetingBusy} onClick={(e) => { e.stopPropagation(); toggleMeeting(meeting) }}>{meeting.mine ? 'Не пойду' : 'Я иду'}</button>}</div> : isFile ? file && <JuryFileMessage file={file} token={session.token} /> : <div className="text">{m.text}</div>}{reactions.filter(r => r.messageId === m.id).length > 0 && <div className="reacts">{reactions.filter(r => r.messageId === m.id).map(r => <span className={'react' + (r.mine ? ' mine' : '')} key={r.reaction}>{r.reaction} {r.count}</span>)}</div>}<div className="meta"><span className="tm">{m.edited ? 'изменено ' : ''}{new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span></div></div></div>
         })}
         <div ref={bottom} />
       </div>
@@ -214,11 +254,16 @@ export default function JuryChat({ onBack, onSave, profile }) {
       <form className="composer jury-composer" onSubmit={send}><button className="icon-btn plus" type="button" aria-label="Добавить" onClick={() => setAttachmentOpen(true)}><Icon name="plus" /></button><button className="icon-btn" type="button" aria-label="Эмодзи" onClick={() => setEmojiOpen(!emojiOpen)}><Icon name="smile" /></button><textarea aria-label="Сообщение" value={text} onChange={(e) => setText(e.target.value)} maxLength={500} placeholder="Сообщение" rows={1} />{text.trim() || editing ? <button className="send" type="submit" aria-label={editing ? 'Сохранить' : 'Отправить'} disabled={busy || !text.trim()}><Icon name={editing ? 'check' : 'send'} /></button> : <Recorder onSend={sendRecording} toast={setError} onActive={(active) => { if (active) setEmojiOpen(false) }} />}</form>
       {!session.jury && <button className="jury-leave" onClick={leave}>Выйти из комнаты</button>}
       {meetingOpen && <JuryMeetingForm onClose={() => setMeetingOpen(false)} onCreate={createMeeting} busy={meetingBusy} error={meetingError} currentTime={currentTime} />}
-      {attachmentOpen && <Sheet title="Добавить" onClose={() => { setAttachmentOpen(false); setError('') }}><button className="btn ghost" onClick={() => { setAttachmentOpen(false); setMeetingError(''); setMeetingOpen(true) }}>Назначить встречу</button><label className="jury-file-pick">{attachmentFile ? attachmentFile.name : 'Выбрать файл'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,application/pdf,text/plain,application/zip,.docx,.pptx,.xlsx" onChange={e => { setAttachmentFile(e.target.files?.[0] || null); setError('') }} /></label><p>Изображения, видео и документы до 1 МБ. В тест загружай только вымышленные материалы без настоящих имён, телефонов и изображений людей.</p><label className="check"><input type="checkbox" checked={attachmentConsent} onChange={e => setAttachmentConsent(e.target.checked)} />Файл не содержит личных данных</label>{error && <p className="jury-error" role="alert">{error}</p>}<button className="btn" disabled={!attachmentFile || !attachmentConsent || busy} onClick={sendAttachment}>{busy ? 'Отправляем…' : 'Отправить файл'}</button></Sheet>}
+      {attachmentOpen && <Sheet title="Добавить" onClose={() => { setAttachmentOpen(false); setError('') }}><button className="btn ghost" onClick={() => { setAttachmentOpen(false); setMeetingError(''); setMeetingOpen(true) }}>Назначить встречу</button><button className="btn ghost" onClick={() => { setAttachmentOpen(false); setGame({ id: crypto.randomUUID(), mode: 'math' }) }}>Мини-игра «Быстрый счёт»</button><button className="btn ghost" onClick={() => { setAttachmentOpen(false); setGame({ id: crypto.randomUUID(), mode: 'sequence' }) }}>Мини-игра «Продолжи ряд»</button><p>Игры пока индивидуальные; соперники в них вымышлены.</p><label className="jury-file-pick">{attachmentFile ? attachmentFile.name : 'Выбрать файл'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,application/pdf,text/plain,application/zip,.docx,.pptx,.xlsx" onChange={e => { setAttachmentFile(e.target.files?.[0] || null); setError('') }} /></label><p>Изображения, видео и документы до 1 МБ. В тест загружай только вымышленные материалы без настоящих имён, телефонов и изображений людей.</p><label className="check"><input type="checkbox" checked={attachmentConsent} onChange={e => setAttachmentConsent(e.target.checked)} />Файл не содержит личных данных</label>{error && <p className="jury-error" role="alert">{error}</p>}<button className="btn" disabled={!attachmentFile || !attachmentConsent || busy} onClick={sendAttachment}>{busy ? 'Отправляем…' : 'Отправить файл'}</button></Sheet>}
       {menu && <Sheet title="Сообщение" onClose={() => setMenu(null)}><div className="react-row">{REACTIONS.map(r => <button key={r} aria-label={`Реакция ${r}`} onClick={() => react(r)} disabled={busy}>{r}</button>)}</div><div className="menu-list"><button className="menu-item" onClick={() => { setReplyTo(menu); setEditing(null); setMenu(null) }}><Icon name="reply" />Ответить</button>{!menu.text.startsWith('::') && <button className="menu-item" onClick={() => { navigator.clipboard?.writeText(menu.text); setMenu(null) }}><Icon name="copy" />Скопировать</button>}{!menu.text.startsWith('::') && onSave && <button className="menu-item" onClick={() => { onSave(menu); setMenu(null) }}><Icon name="copy" />Сохранить в избранном</button>}{menu.author === session.nick && !menu.text.startsWith('::') && <><button className="menu-item" onClick={() => { setEditing(menu); setReplyTo(null); setText(menu.text); setMenu(null) }}><Icon name="edit" />Изменить</button><button className="menu-item danger" onClick={deleteMessage} disabled={busy}><Icon name="trash" />Удалить</button></>}<button className="menu-item" onClick={hideMessage}><Icon name="eyeoff" />Скрыть у себя</button></div><p className="sheet-note">Жалобы и проверка модератором ещё не подключены.</p></Sheet>}
-      {person && <Sheet title="Профиль" onClose={() => setPerson(null)}>{personBusy ? <p>Загружаем профиль…</p> : <><ProfileCard user={person} settings={{ showClass: true, showInterests: false, showOnline: false }} /><p className="sheet-note">Это вымышленный профиль участника демонстрации.</p></>}</Sheet>}
+      {person && <Sheet title={bubbleOpen ? 'Оформление сообщений' : giftOpen ? 'Выбрать подарок' : 'Профиль'} onClose={() => { setPerson(null); setGiftOpen(false); setBubbleOpen(false) }} tall><button className="jury-profile-close" aria-label="Закрыть профиль" onClick={() => { setPerson(null); setGiftOpen(false); setBubbleOpen(false) }}><Icon name="x" /></button>{personBusy ? <p>Загружаем профиль…</p> : bubbleOpen ? <><p>Выбранный стиль увидят участники чата. Баланс: <b>{person.viewerCoins} монет</b>.</p><div className="bubble-grid">{BUBBLES.map(bubble => { const owned = bubble.id === 'default' || person.ownedBubbles.includes(bubble.id); return <button key={bubble.id} className="bubble-option" disabled={giftBusy || (!owned && person.viewerCoins < bubble.price)} onClick={() => selectBubble(bubble)}><span className={'bubble-sample jury-bubble-' + bubble.id}>Привет!</span><b>{bubble.title}</b><small>{person.bubble === bubble.id ? 'Выбрано' : owned ? 'Надеть' : `${bubble.price} монет`}</small></button> })}</div><button className="btn ghost" onClick={() => setBubbleOpen(false)}>Назад к профилю</button></> : giftOpen ? <><p>Твой баланс: <b>{person.viewerCoins} монет</b>. Монеты в этой комнате демонстрационные.</p><div className="gift-grid">{GIFTS.map((gift, i) => <button className="gift-option" key={gift.id} disabled={giftBusy || person.viewerCoins < gift.price} onClick={() => sendGift(gift)}><GiftArt index={i} /><b>{gift.title}</b><span>{gift.price} монет</span></button>)}</div><label className="check"><input type="checkbox" checked={giftAnon} onChange={e => setGiftAnon(e.target.checked)} />Скрыть моё имя от других</label><p className="sheet-note">Получатель увидит, кто отправил подарок.</p><button className="btn ghost" onClick={() => setGiftOpen(false)}>Назад к профилю</button></> : <><ProfileCard user={person} settings={{ showClass: true, showInterests: false, showOnline: false }} />{person.own ? <><p>Твой баланс: <b>{person.viewerCoins} монет</b></p><button className="btn ghost" onClick={() => setBubbleOpen(true)}>Оформление сообщений</button></> : <button className="btn" onClick={() => setGiftOpen(true)}>Подарить подарок</button>}<p className="group-title">Подарки</p>{!person.gifts?.length ? <p>Здесь пока нет подарков.</p> : <div className="gift-grid">{person.gifts.map(gift => { const index = GIFTS.findIndex(item => item.id === gift.type), definition = GIFTS[index]; return <div className="gift-option gift-received" key={gift.id}><GiftArt index={index} /><b>{definition?.title || 'Подарок'}</b><span>{gift.sender ? `От ${gift.sender}` : 'Анонимно'}{gift.hidden && ' · скрыт'}</span>{person.own && <button className="mini-btn" disabled={giftBusy} onClick={() => toggleGift(gift)}>{gift.hidden ? 'Показать' : 'Скрыть'}</button>}</div> })}</div>}<p className="sheet-note">Это вымышленный профиль участника демонстрации. В начале каждому даётся 50 монет; награды учебных игр начисляются в демонстрационный баланс.</p></>}{giftError && <p className="jury-error" role="alert">{giftError}</p>}</Sheet>}
     </>
   )
+}
+
+function GiftArt({ index }) {
+  const x = (index % 3) * 50, y = Math.floor(index / 3) * 100
+  return <span className="gift-art" style={{ backgroundImage: `url(${import.meta.env.BASE_URL}profile-banners/gift-collection.webp)`, backgroundPosition: `${x}% ${y}%` }} aria-hidden="true" />
 }
 
 function JuryFileMessage({ file, token }) {

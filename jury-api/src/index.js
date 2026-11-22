@@ -7,6 +7,8 @@ const meetingPrefix = '::MEET::'
 const filePrefix = '::FILE::'
 const fileMaxBytes = 1024 * 1024
 const banners = new Set(['gaming', 'music', 'basketball', 'space', 'cobalt', 'pink', 'emerald', 'silver'])
+const giftPrices = { rocket: 25, gamepad: 35, headphones: 30, basketball: 40, star: 15, planet: 45 }
+const bubblePrices = { frost: 20, aurora: 30, sunset: 25 }
 const fileTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'audio/webm', 'audio/mp4', 'audio/ogg', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain', 'application/zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
 const sensitive = /(?:\+?\d[\d\s()-]{5,}\d)|[\w.+-]+@[\w.-]+\.[a-zа-яё]{2,}|https?:\/\/|(?:ул\.|улица|проспект|переулок|дом\s+\d)\s*\S+/iu
 
@@ -78,7 +80,7 @@ export default {
         catch (e) { if (String(e).includes('UNIQUE')) return reply({ error: 'Этот ник в комнате уже занят.' }, 409); throw e }
         return reply({ code, token, nick: data.nick, expiresAt: found.expires_at })
       }
-      if (!['/poll', '/send', '/meeting', '/meeting-rsvp', '/attachment', '/attachment-get', '/message-edit', '/message-delete', '/message-react', '/profile-set', '/profile-get'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
+      if (!['/poll', '/send', '/meeting', '/meeting-rsvp', '/attachment', '/attachment-get', '/message-edit', '/message-delete', '/message-react', '/profile-set', '/profile-get', '/gift-send', '/gift-visibility', '/game-reward', '/bubble-buy', '/bubble-equip'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
       if (typeof data.token !== 'string' || !secretPattern.test(data.token)) return reply({ error: 'Сессия недействительна.' }, 401)
       const tokenHash = await hash(data.token)
       if (!(await env.SESSION_LIMIT.limit({ key: tokenHash })).success) return reply({ error: 'Слишком много запросов. Подожди немного.' }, 429)
@@ -95,9 +97,66 @@ export default {
       }
       if (action === '/profile-get') {
         if (typeof data.nick !== 'string' || !validNick(data.nick)) return reply({ error: 'Профиль не найден.' }, 404)
-        const profile = await env.DB.prepare('SELECT m.nick, p.banner, p.avatar, p.status, p.bio FROM demo_members m LEFT JOIN demo_profiles p ON p.token_hash = m.token_hash WHERE m.room_id = ? AND m.nick = ? COLLATE NOCASE').bind(member.room_id, data.nick).first()
+        const profile = await env.DB.prepare('SELECT m.token_hash AS profileToken, m.nick, p.banner, p.avatar, p.status, p.bio, p.bubble FROM demo_members m LEFT JOIN demo_profiles p ON p.token_hash = m.token_hash WHERE m.room_id = ? AND m.nick = ? COLLATE NOCASE').bind(member.room_id, data.nick).first()
         if (!profile) return reply({ error: 'Профиль не найден.' }, 404)
-        return reply({ nick: profile.nick, banner: profile.banner || 'gaming', avatarImage: profile.avatar || null, status: profile.status || '', bio: profile.bio || '', cls: '9В', role: 'student', color: '#548bc3' })
+        await env.DB.prepare('INSERT OR IGNORE INTO demo_wallets (token_hash, coins) VALUES (?, 50)').bind(tokenHash).run()
+        const wallet = await env.DB.prepare('SELECT coins FROM demo_wallets WHERE token_hash = ?').bind(tokenHash).first()
+        const gifts = await env.DB.prepare('SELECT g.id, g.gift_type AS type, g.hidden, g.anonymous, g.sender, m.nick AS senderNick FROM demo_gifts g JOIN demo_members m ON m.token_hash = g.sender WHERE g.recipient = ? AND (g.hidden = 0 OR g.recipient = ?) ORDER BY g.created_at DESC').bind(profile.profileToken, tokenHash).all()
+        const owned = await env.DB.prepare('SELECT bubble FROM demo_bubble_owned WHERE token_hash = ?').bind(tokenHash).all()
+        return reply({ nick: profile.nick, banner: profile.banner || 'gaming', avatarImage: profile.avatar || null, status: profile.status || '', bio: profile.bio || '', bubble: profile.bubble || 'default', ownedBubbles: owned.results.map(x => x.bubble), cls: '9В', role: 'student', color: '#548bc3', own: profile.profileToken === tokenHash, viewerCoins: wallet.coins, gifts: gifts.results.map(g => ({ id: g.id, type: g.type, hidden: !!g.hidden, sender: g.anonymous && g.sender !== tokenHash && profile.profileToken !== tokenHash ? null : g.senderNick, anonymous: !!g.anonymous })) })
+      }
+      if (action === '/bubble-buy') {
+        const price = Object.hasOwn(bubblePrices, data.bubble) ? bubblePrices[data.bubble] : null
+        if (!price) return reply({ error: 'Оформление не найдено.' }, 400)
+        const purchase = crypto.randomUUID()
+        await env.DB.batch([
+          env.DB.prepare('INSERT OR IGNORE INTO demo_wallets (token_hash, coins) VALUES (?, 50)').bind(tokenHash),
+          env.DB.prepare('INSERT OR IGNORE INTO demo_bubble_owned (token_hash, bubble, purchase_ref) SELECT ?, ?, ? FROM demo_wallets WHERE token_hash = ? AND coins >= ?').bind(tokenHash, data.bubble, purchase, tokenHash, price),
+          env.DB.prepare('UPDATE demo_wallets SET coins = coins - ? WHERE token_hash = ? AND EXISTS (SELECT 1 FROM demo_bubble_owned WHERE token_hash = ? AND bubble = ? AND purchase_ref = ?)').bind(price, tokenHash, tokenHash, data.bubble, purchase),
+        ])
+        const owned = await env.DB.prepare('SELECT bubble FROM demo_bubble_owned WHERE token_hash = ? AND bubble = ?').bind(tokenHash, data.bubble).first()
+        if (!owned) return reply({ error: 'Недостаточно монет.' }, 409)
+        return reply({ ok: true })
+      }
+      if (action === '/bubble-equip') {
+        if (data.bubble !== 'default' && !Object.hasOwn(bubblePrices, data.bubble)) return reply({ error: 'Оформление не найдено.' }, 400)
+        if (data.bubble !== 'default' && !await env.DB.prepare('SELECT bubble FROM demo_bubble_owned WHERE token_hash = ? AND bubble = ?').bind(tokenHash, data.bubble).first()) return reply({ error: 'Сначала приобрети оформление.' }, 403)
+        await env.DB.prepare("INSERT INTO demo_profiles (token_hash, bubble) VALUES (?, ?) ON CONFLICT(token_hash) DO UPDATE SET bubble = excluded.bubble").bind(tokenHash, data.bubble).run()
+        return reply({ ok: true })
+      }
+      if (action === '/gift-send') {
+        const price = Object.hasOwn(giftPrices, data.type) ? giftPrices[data.type] : null
+        if (!price || typeof data.nick !== 'string' || typeof data.anonymous !== 'boolean') return reply({ error: 'Проверь подарок и получателя.' }, 400)
+        const recipient = await env.DB.prepare('SELECT token_hash FROM demo_members WHERE room_id = ? AND nick = ? COLLATE NOCASE').bind(member.room_id, data.nick).first()
+        if (!recipient || recipient.token_hash === tokenHash) return reply({ error: 'Выбери другого участника этой комнаты.' }, 400)
+        const id = crypto.randomUUID()
+        await env.DB.batch([
+          env.DB.prepare('INSERT OR IGNORE INTO demo_wallets (token_hash, coins) VALUES (?, 50)').bind(tokenHash),
+          env.DB.prepare('INSERT INTO demo_gifts (id, sender, recipient, gift_type, anonymous, created_at) SELECT ?, ?, ?, ?, ?, ? FROM demo_wallets WHERE token_hash = ? AND coins >= ?').bind(id, tokenHash, recipient.token_hash, data.type, data.anonymous ? 1 : 0, Date.now(), tokenHash, price),
+          env.DB.prepare('UPDATE demo_wallets SET coins = coins - ? WHERE token_hash = ? AND EXISTS (SELECT 1 FROM demo_gifts WHERE id = ?)').bind(price, tokenHash, id),
+        ])
+        const created = await env.DB.prepare('SELECT id FROM demo_gifts WHERE id = ?').bind(id).first()
+        if (!created) return reply({ error: 'Недостаточно монет для этого подарка.' }, 409)
+        return reply({ ok: true })
+      }
+      if (action === '/gift-visibility') {
+        if (typeof data.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(data.id) || typeof data.hidden !== 'boolean') return reply({ error: 'Подарок не найден.' }, 404)
+        const result = await env.DB.prepare('UPDATE demo_gifts SET hidden = ? WHERE id = ? AND recipient = ?').bind(data.hidden ? 1 : 0, data.id, tokenHash).run()
+        if (!result.meta.changes) return reply({ error: 'Подарок не найден.' }, 404)
+        return reply({ ok: true })
+      }
+      if (action === '/game-reward') {
+        if (typeof data.roundId !== 'string' || !/^[A-Za-z0-9:_-]{1,80}$/.test(data.roundId) || !Number.isInteger(data.coins) || data.coins < 0 || data.coins > 30) return reply({ error: 'Неверный результат игры.' }, 400)
+        const day = new Date().toISOString().slice(0, 10)
+        await env.DB.batch([
+          env.DB.prepare('INSERT OR IGNORE INTO demo_wallets (token_hash, coins) VALUES (?, 50)').bind(tokenHash),
+          env.DB.prepare('INSERT OR IGNORE INTO demo_game_rewards (token_hash, round_id, day, amount) SELECT ?, ?, ?, MIN(?, MAX(0, 50 - COALESCE(SUM(amount), 0))) FROM demo_game_rewards WHERE token_hash = ? AND day = ?').bind(tokenHash, data.roundId, day, data.coins, tokenHash, day),
+          env.DB.prepare('UPDATE demo_wallets SET coins = coins + COALESCE((SELECT amount FROM demo_game_rewards WHERE token_hash = ? AND round_id = ? AND credited = 0), 0) WHERE token_hash = ?').bind(tokenHash, data.roundId, tokenHash),
+          env.DB.prepare('UPDATE demo_game_rewards SET credited = 1 WHERE token_hash = ? AND round_id = ?').bind(tokenHash, data.roundId),
+        ])
+        const reward = await env.DB.prepare('SELECT amount FROM demo_game_rewards WHERE token_hash = ? AND round_id = ?').bind(tokenHash, data.roundId).first()
+        const wallet = await env.DB.prepare('SELECT coins FROM demo_wallets WHERE token_hash = ?').bind(tokenHash).first()
+        return reply({ awarded: reward.amount, coins: wallet.coins })
       }
       if (action === '/send') {
         const text = typeof data.text === 'string' ? data.text.trim() : ''
@@ -188,7 +247,8 @@ export default {
       const meetings = await env.DB.prepare('SELECT m.id, m.place, m.note, m.starts_at AS startsAt, m.owner_token_hash = ? AS isOwner, (SELECT COUNT(*) FROM demo_meeting_attendees a WHERE a.meeting_id = m.id) AS going, EXISTS(SELECT 1 FROM demo_meeting_attendees a WHERE a.meeting_id = m.id AND a.token_hash = ?) AS mine FROM demo_meetings m WHERE m.room_id = ?').bind(tokenHash, tokenHash, member.room_id).all()
       const attachments = await env.DB.prepare('SELECT id, name, mime, size FROM demo_attachments WHERE room_id = ?').bind(member.room_id).all()
       const reactions = await env.DB.prepare('SELECT r.message_id AS messageId, r.reaction, COUNT(*) AS count, MAX(r.token_hash = ?) AS mine FROM demo_reactions r JOIN demo_messages m ON m.id = r.message_id WHERE m.room_id = ? GROUP BY r.message_id, r.reaction').bind(tokenHash, member.room_id).all()
-      return reply({ messages: result.results, meetings: meetings.results, attachments: attachments.results, reactions: reactions.results, expiresAt: member.expires_at })
+      const styles = await env.DB.prepare("SELECT m.nick, COALESCE(p.bubble, 'default') AS bubble FROM demo_members m LEFT JOIN demo_profiles p ON p.token_hash = m.token_hash WHERE m.room_id = ?").bind(member.room_id).all()
+      return reply({ messages: result.results, meetings: meetings.results, attachments: attachments.results, reactions: reactions.results, styles: styles.results, expiresAt: member.expires_at })
     } catch {
       return reply({ error: 'Тестовый чат временно недоступен. Попробуй позже.' }, 503)
     }

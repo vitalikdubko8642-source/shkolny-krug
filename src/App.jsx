@@ -249,6 +249,15 @@ export default function App() {
     answerIdea: (id, answer) => patch((prev) => ({ ideas: prev.ideas.map((x) => x.id === id && x.status === 'sent' ? { ...x, answer, status: 'done' } : x) })),
 
     gameFinish: (chatId, msgId, res) => {
+      if (s.user?.jury) {
+        const session = (() => { try { return JSON.parse(localStorage.getItem('shkolny-krug-jury-profile-v1')) } catch { return null } })()
+        const api = import.meta.env.VITE_JURY_API || 'https://shkolny-krug-jury-demo.okla-school-8642.workers.dev'
+        fetch(`${api}/game-reward`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: session?.token, roundId: msgId, coins: res.coins }) }).then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Не удалось начислить монеты.')
+          patch((prev) => ({ user: { ...prev.user, coins: data.coins }, messages: { ...prev.messages, [chatId]: (prev.messages[chatId] || []).map(m => m.id === msgId ? { ...m, game: { ...m.game, results: res.results, my: { place: res.place, coins: data.awarded } } } : m) } }))
+          toast(data.awarded ? `+${data.awarded} 🪙` : 'За этот раунд монеты не начислены')
+        }).catch(e => toast(e.message || 'Не удалось начислить монеты. Попробуй снова.'))
+        return
+      }
       const today = new Date().toLocaleDateString('en-CA')
       const already = s.user.gameRewardDate === today ? s.user.gameRewardTotal || 0 : 0
       const awarded = Math.max(0, Math.min(res.coins, 50 - already))
@@ -270,7 +279,7 @@ export default function App() {
       setJuryRegistration(false)
     } catch { toast('Не удалось сохранить профиль на устройстве.') }
   }} />
-  else if (juryOpen) screen = <JuryChat profile={s.user} onBack={closeJury} onSave={(message) => { patch((prev) => ({ messages: { ...prev.messages, saved: [...(prev.messages.saved || []), { id: 'saved-' + crypto.randomUUID(), from: prev.user.nick, own: true, text: message.text, time: now(), createdAt: new Date().toISOString(), forwardedFrom: message.author }] } })); toast('Сохранено в избранном на этом устройстве') }} />
+  else if (juryOpen) screen = <JuryChat profile={s.user} onBack={closeJury} onWalletChange={(coins) => patch((prev) => ({ user: { ...prev.user, coins } }))} onSave={(message) => { patch((prev) => ({ messages: { ...prev.messages, saved: [...(prev.messages.saved || []), { id: 'saved-' + crypto.randomUUID(), from: prev.user.nick, own: true, text: message.text, time: now(), createdAt: new Date().toISOString(), forwardedFrom: message.author }] } })); toast('Сохранено в избранном на этом устройстве') }} />
   else if (s.stage === 'welcome') screen = <Welcome onNext={() => patch({ stage: 'rules' })} onInstall={() => setInstallOpen(true)} installed={pwa.installed} onJury={openJury} />
   else if (s.stage === 'rules') screen = <Rules onBack={() => patch({ stage: 'welcome' })} onNext={() => patch({ stage: 'register' })} />
   else if (s.stage === 'register') screen = (

@@ -545,6 +545,26 @@ body { background: #edf2f5; letter-spacing: -.01em; }
 .channel-comment b { color: var(--accent); font-size: 13px; }
 .jury-message { cursor: pointer; }
 .jury-author { display: block; padding: 0; font: inherit; font-size: 13px; font-weight: 650; text-align: left; color: var(--accent); }
+.gift-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.gift-option { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 5px 5px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-2); color: var(--text); text-align: center; }
+.gift-option:disabled { opacity: .45; }
+.gift-option b { font-size: 12px; line-height: 1.2; }
+.gift-option span:not(.gift-art) { font-size: 11px; color: var(--text-2); }
+.gift-art { display: block; width: 100%; aspect-ratio: 1; border-radius: 10px; background-size: 300% 200%; background-repeat: no-repeat; }
+.gift-received .mini-btn { margin-top: 4px; }
+.sheet:has(.jury-profile-close) { position: relative; }
+.jury-profile-close { position: absolute; top: 15px; right: 16px; width: 36px; height: 36px; display: grid; place-items: center; color: var(--text-2); }
+.jury-profile-close svg { width: 20px; height: 20px; }
+.bubble-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.bubble-option { display: grid; gap: 7px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-2); color: var(--text); text-align: left; }
+.bubble-option:disabled { opacity: .5; }
+.bubble-option b { font-size: 13px; }
+.bubble-option small { color: var(--text-2); }
+.bubble-sample { display: block; padding: 12px; border-radius: 14px 14px 4px 14px; background: var(--own); color: var(--text); font-size: 13px; }
+.jury-message.jury-bubble-frost, .bubble-sample.jury-bubble-frost { background: linear-gradient(135deg, #d7f4fc, #b6d9ed); color: #173544; }
+.jury-message.jury-bubble-aurora, .bubble-sample.jury-bubble-aurora { background: linear-gradient(135deg, #e4dbff, #c3e8e5); color: #26394c; }
+.jury-message.jury-bubble-sunset, .bubble-sample.jury-bubble-sunset { background: linear-gradient(135deg, #ffe2cf, #f2c5d1); color: #503039; }
+.jury-message[class*='jury-bubble-']:not(.jury-bubble-default) .from, .jury-message[class*='jury-bubble-']:not(.jury-bubble-default) .tm { color: #405766; }
 .jury-emoji-picker { position: static; flex: none; max-height: 190px; overflow: auto; }
 .camera-controls { position: absolute; left: 18px; right: 18px; bottom: 84px; display: flex; align-items: center; gap: 8px; color: white; pointer-events: auto; }
 .camera-controls button { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; background: rgba(20,32,45,.85); color: white; }

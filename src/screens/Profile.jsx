@@ -152,7 +152,7 @@ function MePage({ user, settings, onUser, onBack }) {
         <label className="avatar-upload">Загрузить изображение<input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadAvatar} /></label>
         {user.avatarImage && <button className="mini-btn" onClick={() => onUser({ avatarImage: null })}>Убрать изображение</button>}
         {avatarError && <p className="err" role="alert">{avatarError}</p>}
-        <p className="fine">Для конкурсного прототипа выбирай вымышленные изображения без личных данных. Аватар пока хранится только в этом браузере.</p>
+        <p className="fine">Для конкурсного прототипа выбирай вымышленные изображения без личных данных. {user.jury ? 'Аватар будет виден участникам чата жюри.' : 'Аватар пока хранится только в этом браузере.'}</p>
         <div className="swatches">
           {AVATAR_COLORS.map((c) => (
             <button key={c} className={'sw' + (user.color === c ? ' on' : '')} style={{ background: c }} onClick={() => onUser({ color: c })} aria-label="Цвет" />
@@ -313,6 +313,7 @@ function ShopPage({ user, onUser, onBack }) {
         <span className="big">{coins} 🪙</span>
         <span>Монеты дают за призовые места в мини-играх в группах: 🥇 30, 🥈 20, 🥉 10, за участие 5. Купить монеты за деньги нельзя.</span>
       </div>
+      {user.jury && <p className="group-note">Для общего чата жюри подарки и оформление сообщений покупаются через профиль в чате. Покупки из этого локального магазина пока недоступны в режиме жюри.</p>}
       <p className="group-title">Так ты выглядишь</p>
       <ProfileCard user={user} settings={{ showClass: true, showInterests: false }} />
       {SHOP_GROUPS.map(([type, title]) => (
@@ -328,7 +329,7 @@ function ShopPage({ user, onUser, onBack }) {
                   <span className="rt">{it.title}{!has && <small>{it.price} 🪙</small>}</span>
                   {has
                     ? <button className={'mini-btn' + (on ? ' on' : '')} onClick={() => toggle(it)}>{on ? 'Надето ✓' : 'Надеть'}</button>
-                    : <button className="mini-btn" disabled={coins < it.price} onClick={() => buy(it)}>{coins < it.price ? `Нужно ${it.price}` : 'Купить'}</button>}
+                    : <button className="mini-btn" disabled={!!user.jury || coins < it.price} onClick={() => buy(it)}>{user.jury ? 'Локальный магазин' : coins < it.price ? `Нужно ${it.price}` : 'Купить'}</button>}
                 </div>
               )
             })}

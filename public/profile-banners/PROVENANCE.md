@@ -7,3 +7,4 @@ The eight images in this directory were generated for this project using the ima
 - basketball: basketball court
 - space: nebula and ringed planet
 - cobalt, pink, emerald, silver: abstract material studies
+- gift-collection: generated six-piece gift artwork used as a sprite sheet.
