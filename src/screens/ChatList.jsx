@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import Avatar from '../components/Avatar.jsx'
 import Sheet from '../components/Sheet.jsx'
@@ -13,6 +13,18 @@ export default function ChatList({ user, chats, messages, unread, alerts, onOpen
   const [folder, setFolder] = useState('all')
   const [q, setQ] = useState('')
   const [creating, setCreating] = useState(false)
+  const foldersRef = useRef(null)
+  const [moreFolders, setMoreFolders] = useState(false)
+  useEffect(() => {
+    const element = foldersRef.current
+    if (!element) return
+    const update = () => setMoreFolders(element.scrollLeft + element.clientWidth < element.scrollWidth - 2)
+    update()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    observer?.observe(element)
+    element.addEventListener('scroll', update, { passive: true })
+    return () => { observer?.disconnect(); element.removeEventListener('scroll', update) }
+  }, [user?.role])
 
   if (user?.role === 'teacher') {
     return (
@@ -41,6 +53,7 @@ export default function ChatList({ user, chats, messages, unread, alerts, onOpen
       <div className="topbar chat-list-header">
         <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
         <div className="brand-heading"><h1>Школьный круг</h1><span>Общение начинается здесь</span></div>
+        <button className="create-chat" aria-label="Создать группу" onClick={() => setCreating(true)}><Icon name="pencil" /></button>
       </div>
       {alert && (
         <button className="alert-banner" onClick={onGoEvents}>
@@ -49,12 +62,15 @@ export default function ChatList({ user, chats, messages, unread, alerts, onOpen
       )}
       <div className="search">
         <Icon name="search" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск" aria-label="Поиск чатов и сообщений" />
       </div>
-      <div className="folders">
-        {folders.map((f) => (
-          <button key={f.id} className={folder === f.id ? 'on' : ''} onClick={() => setFolder(f.id)}>{f.title}</button>
-        ))}
+      <div className="folders-wrap">
+        <div className="folders" ref={foldersRef} role="group" aria-label="Папки чатов">
+          {folders.map((f) => (
+            <button key={f.id} className={folder === f.id ? 'on' : ''} aria-pressed={folder === f.id} onClick={() => setFolder(f.id)}>{f.title}</button>
+          ))}
+        </div>
+        {moreFolders && <button className="folders-more" aria-label="Показать остальные папки" onClick={() => foldersRef.current?.scrollBy({ left: 160, behavior: 'smooth' })}><Icon name="chevron" /></button>}
       </div>
       <div className="scroll" style={{ paddingBottom: 80 }}>
         {list.length === 0 && q.trim() && <div className="empty"><b>Ничего не нашли</b><span>Попробуй другой запрос.</span></div>}
@@ -83,8 +99,6 @@ export default function ChatList({ user, chats, messages, unread, alerts, onOpen
           )
         })}
       </div>
-      <button className="fab" aria-label="Создать группу" onClick={() => setCreating(true)}><Icon name="pencil" /></button>
-
       {creating && (
         <GroupForm chats={chats} onClose={() => setCreating(false)}
           onOpen={(id) => { setCreating(false); onOpen(id) }}

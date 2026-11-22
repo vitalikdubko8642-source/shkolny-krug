@@ -7,6 +7,7 @@ import Icon from '../components/Icon.jsx'
 import Sheet from '../components/Sheet.jsx'
 import { people, IDEA_TAGS } from '../data/demo.js'
 import { findSimilar, checkNew } from '../logic/moderation.js'
+import { ThumbsUp, UsersRound } from 'lucide-react'
 
 const tagColor = { 'Школа': '#3390EC', 'Двор': '#F2994A', 'Досуг': '#9B51E0', 'Добро': '#EB5757', 'Учёба': '#27AE60' }
 
@@ -79,11 +80,11 @@ function IdeaButtons({ i, user, onSupport, onJoin }) {
   return (
     <div className="idea-btns">
       <button className={'mini-btn' + (i.supported ? ' on' : '')} disabled={i.own || !!i.status} onClick={(e) => { e.stopPropagation(); onSupport(i.id) }}>
-        {i.own ? `👍 ${sup}` : i.supported ? `👍 Поддержал · ${sup}` : `👍 Поддержать · ${sup}`}
+        <ThumbsUp size={16} aria-hidden="true" /> {i.own ? sup : i.supported ? `Поддержал · ${sup}` : `Поддержать · ${sup}`}
       </button>
       {i.needPeople && user.role !== 'teacher' && (
         <button className={'mini-btn' + (i.joinedMe ? ' on' : '')} onClick={(e) => { e.stopPropagation(); onJoin(i.id) }}>
-          {i.joinedMe ? '✓ Участвую' : 'Участвую'} · {i.joined + (i.joinedMe ? 1 : 0)}
+          <UsersRound size={16} aria-hidden="true" /> Участвую · {i.joined + (i.joinedMe ? 1 : 0)}
         </button>
       )}
     </div>
