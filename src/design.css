@@ -578,6 +578,13 @@ body { background: #edf2f5; letter-spacing: -.01em; }
 .bubble-sample.jury-bubble-frost::after, .bubble-sample.jury-bubble-aurora::after, .bubble-sample.jury-bubble-sunset::after { width: 24px; height: 24px; left: -12px; }
 .jury-message[class*='jury-bubble-']:not(.jury-bubble-default) .from, .jury-message[class*='jury-bubble-']:not(.jury-bubble-default) .tm { color: #405766; }
 .jury-emoji-picker { position: static; flex: none; max-height: 190px; overflow: auto; }
+.moderator-screen { padding: 16px; }
+.moderator-screen > p { color: var(--text-2); line-height: 1.45; }
+.moderator-report { display: grid; gap: 8px; margin: 12px 0; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--bg-2); overflow-wrap: anywhere; }
+.moderator-report > span, .moderator-report > small { color: var(--text-2); font-size: 12px; }
+.moderator-report blockquote { margin: 0; padding: 12px; border-radius: 10px; background: var(--bg); }
+.moderator-report p { margin: 0; }
+.moderator-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .camera-controls { position: absolute; left: 18px; right: 18px; bottom: 84px; display: flex; align-items: center; gap: 8px; color: white; pointer-events: auto; }
 .camera-controls button { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; background: rgba(20,32,45,.85); color: white; }
 .camera-controls button:disabled { opacity: .4; }

@@ -18,6 +18,7 @@ import TabBar from './components/TabBar.jsx'
 import { clearRecordings } from './mediaStore.js'
 import InstallGuide from './components/InstallGuide.jsx'
 import JuryChat from './screens/JuryChat.jsx'
+import Moderator from './screens/Moderator.jsx'
 import { subscribePwa, getPwaSnapshot, applyUpdate } from './pwa.js'
 
 export const defaultSettings = {
@@ -67,6 +68,7 @@ export default function App() {
   const [toastText, setToastText] = useState(null)
   const [installOpen, setInstallOpen] = useState(false)
   const [juryRegistration, setJuryRegistration] = useState(false)
+  const [moderatorOpen, setModeratorOpen] = useState(false)
   const studentBackupKey = 'shkolny-krug-student-backup-v1'
   const juryBackupKey = 'shkolny-krug-jury-backup-v1'
   const switchJury = () => {
@@ -272,14 +274,15 @@ export default function App() {
 
   // ----- Какой экран показать -----
   let screen
-  if (juryRegistration) screen = <Register initialRole="jury" onBack={() => setJuryRegistration(false)} onDone={(user) => {
+  if (moderatorOpen) screen = <Moderator onBack={() => setModeratorOpen(false)} />
+  else if (juryRegistration) screen = <Register initialRole="jury" onBack={() => setJuryRegistration(false)} onDone={(user) => {
     try {
       localStorage.setItem(studentBackupKey, JSON.stringify(s))
       set({ ...initial, settings: s.settings, user: { ...user, coins: 50, owned: [] }, stage: 'main', tab: 'chats' })
       setJuryRegistration(false)
     } catch { toast('Не удалось сохранить профиль на устройстве.') }
   }} />
-  else if (juryOpen) screen = <JuryChat profile={s.user} onBack={closeJury} onWalletChange={(coins) => patch((prev) => ({ user: { ...prev.user, coins } }))} onSave={(message) => { patch((prev) => ({ messages: { ...prev.messages, saved: [...(prev.messages.saved || []), { id: 'saved-' + crypto.randomUUID(), from: prev.user.nick, own: true, text: message.text, time: now(), createdAt: new Date().toISOString(), forwardedFrom: message.author }] } })); toast('Сохранено в избранном на этом устройстве') }} />
+  else if (juryOpen) screen = <JuryChat profile={s.user} onBack={closeJury} archived={(s.archivedChats || []).includes('class:9В')} onArchive={() => { patch((prev) => ({ archivedChats: (prev.archivedChats || []).includes('class:9В') ? prev.archivedChats.filter(x => x !== 'class:9В') : [...(prev.archivedChats || []), 'class:9В'] })); closeJury() }} onWalletChange={(coins) => patch((prev) => ({ user: { ...prev.user, coins } }))} onSave={(message) => { patch((prev) => ({ messages: { ...prev.messages, saved: [...(prev.messages.saved || []), { id: 'saved-' + crypto.randomUUID(), from: prev.user.nick, own: true, text: message.text, time: now(), createdAt: new Date().toISOString(), forwardedFrom: message.author }] } })); toast('Сохранено в избранном на этом устройстве') }} />
   else if (s.stage === 'welcome') screen = <Welcome onNext={() => patch({ stage: 'rules' })} onInstall={() => setInstallOpen(true)} installed={pwa.installed} onJury={openJury} />
   else if (s.stage === 'rules') screen = <Rules onBack={() => patch({ stage: 'welcome' })} onNext={() => patch({ stage: 'register' })} />
   else if (s.stage === 'register') screen = (
@@ -364,6 +367,7 @@ export default function App() {
         onTour={() => patch({ tourOpen: true })}
         onInstall={() => setInstallOpen(true)}
         onSwitchJury={switchJury}
+        onModerator={() => setModeratorOpen(true)}
         canReturnToStudent={(() => { try { return !!localStorage.getItem(studentBackupKey) } catch { return false } })()}
         installed={pwa.installed}
         onReset={async () => { try { await clearRecordings() } catch { toast('Не удалось очистить записи. Попробуй ещё раз.'); return }; reset(); location.reload() }}

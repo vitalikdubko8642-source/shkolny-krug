@@ -57,7 +57,7 @@ function Page({ title, onBack, children }) {
 }
 
 // ---------- главная страница профиля ----------
-export default function Profile({ user, settings, page, onPage, onUser, onSettings, onReset, onRole, onTour, blocked, onUnblock, onInstall, installed, onSwitchJury, canReturnToStudent }) {
+export default function Profile({ user, settings, page, onPage, onUser, onSettings, onReset, onRole, onTour, blocked, onUnblock, onInstall, installed, onSwitchJury, canReturnToStudent, onModerator }) {
   const back = () => onPage(null)
   if (page === 'me') return <MePage user={user} settings={settings} onUser={onUser} onBack={back} />
   if (page === 'look') return <LookPage settings={settings} onSettings={onSettings} onBack={back} />
@@ -92,6 +92,7 @@ export default function Profile({ user, settings, page, onPage, onUser, onSettin
         </div>
         <div className="group">
           {(!user.jury || canReturnToStudent) && <Row icon="users" color="#528ACC" title={user.jury ? 'Вернуться к профилю ученика' : 'Войти как жюри'} sub={user.jury ? 'Твой учебный профиль сохранён на устройстве' : 'Вход по личному коду · профиль ученика сохранится'} onClick={onSwitchJury} />}
+          <Row icon="shield" color="#738397" title="Модерация" sub="Доступ по личному коду модератора" onClick={onModerator} />
           {!isTeacher && <Row icon="map" color="#56CCF2" title="Гид по школе" sub="Что где находится и с кем познакомиться" onClick={onTour} />}
           {!installed && <Row icon="download" color="#287bc2" title="Установить приложение" sub="Добавить на главный экран телефона" onClick={onInstall} />}
           <Row icon="info" color="#828282" title="О приложении" sub="Правила, модерация, режим демонстрации" onClick={() => onPage('about')} />

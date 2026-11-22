@@ -9,6 +9,7 @@ const fileMaxBytes = 1024 * 1024
 const banners = new Set(['gaming', 'music', 'basketball', 'space', 'cobalt', 'pink', 'emerald', 'silver'])
 const giftPrices = { rocket: 25, gamepad: 35, headphones: 30, basketball: 40, star: 15, planet: 45 }
 const bubblePrices = { frost: 20, aurora: 30, sunset: 25 }
+const reportReasons = new Set(['Меня это задело', 'Оскорбляют кого-то', 'Спам или реклама', 'Делятся чужими личными данными', 'Другое'])
 const fileTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'audio/webm', 'audio/mp4', 'audio/ogg', 'video/mp4', 'video/webm', 'application/pdf', 'text/plain', 'application/zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
 const sensitive = /(?:\+?\d[\d\s()-]{5,}\d)|[\w.+-]+@[\w.-]+\.[a-zа-яё]{2,}|https?:\/\/|(?:ул\.|улица|проспект|переулок|дом\s+\d)\s*\S+/iu
 
@@ -43,6 +44,29 @@ export default {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return reply({ error: 'Неверный запрос.' }, 400)
     const action = new URL(request.url).pathname
     try {
+      if (action === '/moderator-list' || action === '/moderator-decision') {
+        const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
+        if (!(await env.MOD_LIMIT.limit({ key: ip })).success) return reply({ error: 'Слишком много попыток. Попробуй через минуту.' }, 429)
+        if (typeof env.MODERATOR_SECRET !== 'string' || env.MODERATOR_SECRET.length < 20 || typeof data.secret !== 'string' || data.secret.length > 256) return reply({ error: 'Неверный код модератора.' }, 403)
+        const supplied = await hash(data.secret), expected = await hash(env.MODERATOR_SECRET)
+        let mismatch = 0; for (let i = 0; i < expected.length; i++) mismatch |= supplied.charCodeAt(i) ^ expected.charCodeAt(i)
+        if (mismatch !== 0) return reply({ error: 'Неверный код модератора.' }, 403)
+        if (action === '/moderator-list') {
+          const result = await env.DB.prepare("SELECT id, author, reporter, snapshot, reason, details, created_at AS createdAt FROM demo_reports WHERE status = 'pending' ORDER BY created_at ASC LIMIT 100").all()
+          return reply({ reports: result.results })
+        }
+        if (typeof data.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(data.id) || !['keep', 'remove'].includes(data.decision)) return reply({ error: 'Проверь решение.' }, 400)
+        const report = await env.DB.prepare("SELECT id, room_id, message_id, snapshot FROM demo_reports WHERE id = ? AND status = 'pending'").bind(data.id).first()
+        if (!report) return reply({ error: 'Жалоба не найдена или уже рассмотрена.' }, 404)
+        if (data.decision === 'remove') {
+          const result = await env.DB.batch([
+            env.DB.prepare('DELETE FROM demo_messages WHERE id = ? AND room_id = ? AND text = ?').bind(report.message_id, report.room_id, report.snapshot),
+            env.DB.prepare("UPDATE demo_reports SET status = 'removed', decided_at = ? WHERE id = ? AND status = 'pending' AND NOT EXISTS (SELECT 1 FROM demo_messages WHERE id = ? AND room_id = ?)").bind(Date.now(), data.id, report.message_id, report.room_id),
+          ])
+          if (!result[1].meta.changes) return reply({ error: 'Сообщение изменилось после жалобы. Проверь его заново.' }, 409)
+        } else await env.DB.prepare("UPDATE demo_reports SET status = 'kept', decided_at = ? WHERE id = ? AND status = 'pending'").bind(Date.now(), data.id).run()
+        return reply({ ok: true })
+      }
       if (action === '/jury-enter') {
         const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
         if (!(await env.ENTRY_LIMIT.limit({ key: ip })).success || !(await env.JURY_GLOBAL_LIMIT.limit({ key: 'jury-entry' })).success) return reply({ error: 'Слишком много попыток. Попробуйте через минуту.' }, 429)
@@ -80,12 +104,21 @@ export default {
         catch (e) { if (String(e).includes('UNIQUE')) return reply({ error: 'Этот ник в комнате уже занят.' }, 409); throw e }
         return reply({ code, token, nick: data.nick, expiresAt: found.expires_at })
       }
-      if (!['/poll', '/send', '/meeting', '/meeting-rsvp', '/attachment', '/attachment-get', '/message-edit', '/message-delete', '/message-react', '/profile-set', '/profile-get', '/gift-send', '/gift-visibility', '/game-reward', '/bubble-buy', '/bubble-equip'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
+      if (!['/poll', '/send', '/meeting', '/meeting-rsvp', '/attachment', '/attachment-get', '/message-edit', '/message-delete', '/message-react', '/profile-set', '/profile-get', '/gift-send', '/gift-visibility', '/game-reward', '/bubble-buy', '/bubble-equip', '/report'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
       if (typeof data.token !== 'string' || !secretPattern.test(data.token)) return reply({ error: 'Сессия недействительна.' }, 401)
       const tokenHash = await hash(data.token)
       if (!(await env.SESSION_LIMIT.limit({ key: tokenHash })).success) return reply({ error: 'Слишком много запросов. Подожди немного.' }, 429)
       const member = await env.DB.prepare('SELECT m.room_id, m.nick, r.expires_at FROM demo_members m JOIN demo_rooms r ON r.id = m.room_id WHERE m.token_hash = ? AND r.expires_at > ?').bind(tokenHash, Date.now()).first()
       if (!member) return reply({ error: 'Комната закрыта или время её работы истекло.' }, 401)
+      if (action === '/report') {
+        const details = typeof data.details === 'string' ? data.details.trim() : ''
+        if (!Number.isSafeInteger(data.id) || !reportReasons.has(data.reason) || details.length > 300 || (data.reason === 'Другое' && !details) || sensitive.test(details)) return reply({ error: 'Выбери причину и не указывай личные данные.' }, 400)
+        const message = await env.DB.prepare('SELECT id, author, text FROM demo_messages WHERE id = ? AND room_id = ?').bind(data.id, member.room_id).first()
+        if (!message || message.author === member.nick || message.text.startsWith(meetingPrefix) || message.text.startsWith(filePrefix)) return reply({ error: 'Можно пожаловаться на текстовое сообщение другого участника.' }, 400)
+        const id = crypto.randomUUID()
+        await env.DB.prepare('INSERT INTO demo_reports (id, room_id, message_id, reporter, author, snapshot, reason, details, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(id, member.room_id, message.id, member.nick, message.author, message.text, data.reason, details, Date.now()).run()
+        return reply({ ok: true })
+      }
       if (action === '/profile-set') {
         const banner = banners.has(data.banner) ? data.banner : 'gaming'
         const avatar = typeof data.avatar === 'string' ? data.avatar : null

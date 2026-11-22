@@ -54,6 +54,15 @@ async function api(action, data) {
     await pages[1].getByRole('textbox', { name: 'Сообщение' }).fill('Всё видно!')
     await pages[1].getByRole('button', { name: 'Отправить', exact: true }).click()
     await pages[0].getByText('Всё видно!', { exact: true }).waitFor({ timeout: 12000 })
+    if (process.env.MOD_TEST_SECRET) {
+      await pages[0].getByText('Всё видно!', { exact: true }).click()
+      await pages[0].getByRole('button', { name: 'Пожаловаться', exact: true }).click()
+      await pages[0].getByRole('button', { name: 'Меня это задело' }).click()
+      await pages[0].getByRole('button', { name: 'Отправить жалобу' }).click()
+      await pages[0].getByText('Жалоба отправлена человеку на рассмотрение.').waitFor()
+      const queue = await api('moderator-list', { secret: process.env.MOD_TEST_SECRET })
+      assert.equal(queue.data.reports.some(r => r.snapshot === 'Всё видно!' && r.reason === 'Меня это задело'), true)
+    }
     const secondNick = await pages[1].evaluate(() => JSON.parse(localStorage.getItem('shkolny-krug-jury-profile-v1')).nick)
     const third = await api('jury-enter', { code: codes[2] })
     assert.equal(third.status, 200)
