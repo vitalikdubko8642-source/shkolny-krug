@@ -34,5 +34,8 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+      # Allow the Actions artifact API to finish indexing the uploaded archive.
+      - name: Wait for Pages artifact
+        run: sleep 10
       - id: deployment
         uses: actions/deploy-pages@v4
