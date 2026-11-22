@@ -77,7 +77,7 @@ export default {
         catch (e) { if (String(e).includes('UNIQUE')) return reply({ error: 'Этот ник в комнате уже занят.' }, 409); throw e }
         return reply({ code, token, nick: data.nick, expiresAt: found.expires_at })
       }
-      if (!['/poll', '/send', '/meeting', '/meeting-rsvp', '/attachment', '/attachment-get'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
+      if (!['/poll', '/send', '/meeting', '/meeting-rsvp', '/attachment', '/attachment-get', '/message-edit', '/message-delete', '/message-react'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
       if (typeof data.token !== 'string' || !secretPattern.test(data.token)) return reply({ error: 'Сессия недействительна.' }, 401)
       const tokenHash = await hash(data.token)
       if (!(await env.SESSION_LIMIT.limit({ key: tokenHash })).success) return reply({ error: 'Слишком много запросов. Подожди немного.' }, 429)
@@ -88,8 +88,36 @@ export default {
         if (!text || text.length > 500) return reply({ error: 'Сообщение должно содержать от 1 до 500 символов.' }, 400)
         if (text.startsWith(meetingPrefix) || text.startsWith(filePrefix)) return reply({ error: 'Неверный формат сообщения.' }, 400)
         if (sensitive.test(text)) return reply({ error: 'В тесте нельзя отправлять номера, адреса, почту и ссылки. Используй вымышленные данные.' }, 400)
-        const entry = await env.DB.prepare('INSERT INTO demo_messages (room_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(member.room_id, member.nick, text, Date.now()).run()
+        let replyId = null
+        if (data.replyId != null) {
+          if (!Number.isSafeInteger(data.replyId)) return reply({ error: 'Сообщение для ответа не найдено.' }, 400)
+          const original = await env.DB.prepare('SELECT id FROM demo_messages WHERE id = ? AND room_id = ?').bind(data.replyId, member.room_id).first()
+          if (!original) return reply({ error: 'Сообщение для ответа не найдено.' }, 404)
+          replyId = data.replyId
+        }
+        const entry = await env.DB.prepare('INSERT INTO demo_messages (room_id, author, text, created_at, reply_id) VALUES (?, ?, ?, ?, ?)').bind(member.room_id, member.nick, text, Date.now(), replyId).run()
         return reply({ id: entry.meta.last_row_id })
+      }
+      if (['/message-edit', '/message-delete', '/message-react'].includes(action)) {
+        if (!Number.isSafeInteger(data.id)) return reply({ error: 'Сообщение не найдено.' }, 404)
+        const message = await env.DB.prepare('SELECT id, author, text FROM demo_messages WHERE id = ? AND room_id = ?').bind(data.id, member.room_id).first()
+        if (!message) return reply({ error: 'Сообщение не найдено.' }, 404)
+        if (action === '/message-react') {
+          const allowed = ['👍', '❤️', '😂', '🔥', '😮', '😢']
+          if (data.reaction !== null && !allowed.includes(data.reaction)) return reply({ error: 'Неверная реакция.' }, 400)
+          if (data.reaction === null) await env.DB.prepare('DELETE FROM demo_reactions WHERE message_id = ? AND token_hash = ?').bind(data.id, tokenHash).run()
+          else await env.DB.prepare('INSERT INTO demo_reactions (message_id, token_hash, reaction) VALUES (?, ?, ?) ON CONFLICT(message_id, token_hash) DO UPDATE SET reaction = excluded.reaction').bind(data.id, tokenHash, data.reaction).run()
+          return reply({ ok: true })
+        }
+        if (message.author !== member.nick) return reply({ error: 'Изменять можно только свои сообщения.' }, 403)
+        if (message.text.startsWith(meetingPrefix) || message.text.startsWith(filePrefix)) return reply({ error: 'Это сообщение нельзя изменить здесь.' }, 400)
+        if (action === '/message-delete') await env.DB.prepare('DELETE FROM demo_messages WHERE id = ? AND room_id = ?').bind(data.id, member.room_id).run()
+        else {
+          const text = typeof data.text === 'string' ? data.text.trim() : ''
+          if (!text || text.length > 500 || text.startsWith(meetingPrefix) || text.startsWith(filePrefix) || sensitive.test(text)) return reply({ error: 'Проверь текст: он должен быть непустым и без личных данных.' }, 400)
+          await env.DB.prepare('UPDATE demo_messages SET text = ?, edited = 1 WHERE id = ? AND room_id = ?').bind(text, data.id, member.room_id).run()
+        }
+        return reply({ ok: true })
       }
       if (action === '/attachment') {
         const name = typeof data.name === 'string' ? data.name.trim() : ''
@@ -140,10 +168,11 @@ export default {
         return reply({ ok: true })
       }
       const since = Number.isSafeInteger(data.since) && data.since >= 0 ? data.since : 0
-      const result = await env.DB.prepare('SELECT id, author, text, created_at AS createdAt FROM demo_messages WHERE room_id = ? AND id > ? ORDER BY id ASC LIMIT 100').bind(member.room_id, since).all()
+      const result = await env.DB.prepare('SELECT * FROM (SELECT id, author, text, created_at AS createdAt, reply_id AS replyId, edited FROM demo_messages WHERE room_id = ? AND id > ? ORDER BY id DESC LIMIT 500) ORDER BY id ASC').bind(member.room_id, since).all()
       const meetings = await env.DB.prepare('SELECT m.id, m.place, m.note, m.starts_at AS startsAt, m.owner_token_hash = ? AS isOwner, (SELECT COUNT(*) FROM demo_meeting_attendees a WHERE a.meeting_id = m.id) AS going, EXISTS(SELECT 1 FROM demo_meeting_attendees a WHERE a.meeting_id = m.id AND a.token_hash = ?) AS mine FROM demo_meetings m WHERE m.room_id = ?').bind(tokenHash, tokenHash, member.room_id).all()
       const attachments = await env.DB.prepare('SELECT id, name, mime, size FROM demo_attachments WHERE room_id = ?').bind(member.room_id).all()
-      return reply({ messages: result.results, meetings: meetings.results, attachments: attachments.results, expiresAt: member.expires_at })
+      const reactions = await env.DB.prepare('SELECT r.message_id AS messageId, r.reaction, COUNT(*) AS count, MAX(r.token_hash = ?) AS mine FROM demo_reactions r JOIN demo_messages m ON m.id = r.message_id WHERE m.room_id = ? GROUP BY r.message_id, r.reaction').bind(tokenHash, member.room_id).all()
+      return reply({ messages: result.results, meetings: meetings.results, attachments: attachments.results, reactions: reactions.results, expiresAt: member.expires_at })
     } catch {
       return reply({ error: 'Тестовый чат временно недоступен. Попробуй позже.' }, 503)
     }

@@ -37,6 +37,8 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
   const [typing, setTyping] = useState(null)
   const [menu, setMenu] = useState(null)       // сообщение, по которому нажали
   const [report, setReport] = useState(null)   // на что жалуемся
+  const [commentPost, setCommentPost] = useState(null)
+  const [commentText, setCommentText] = useState('')
   const [reason, setReason] = useState(null)
   const [reasonDetails, setReasonDetails] = useState('')
   const [personalWarning, setPersonalWarning] = useState(false)
@@ -256,6 +258,7 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
                       ))}
                     </div>
                   )}
+                  {isChannel && <span role="button" tabIndex={0} className="channel-comments" onClick={(e) => { e.stopPropagation(); setCommentPost(m.id) }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setCommentPost(m.id) } }}><Icon name="chat" />Комментарии{m.comments?.length ? ` · ${m.comments.length}` : ''}</span>}
                   <div className="meta"><span className="tm">{m.edited && 'изменено '}{m.time}{m.own && isDm && ' ✓✓'}</span></div>
                 </MessageElement>
               )}
@@ -347,6 +350,13 @@ export default function Chat({ chat, user, settings, list, onBack, onChange, per
         </Sheet>
       )}
       {sheet === 'meet' && <QuickMeet onClose={() => setSheet(null)} onSend={postMeet} />}
+      {commentPost && <Sheet title="Комментарии" onClose={() => { setCommentPost(null); setCommentText('') }} tall>
+        <p>Демонстрация: комментарии сохраняются только в этом браузере.</p>
+        {(list.find(m => m.id === commentPost)?.comments || []).map((comment) => <div key={comment.id} className="channel-comment"><b>{comment.author}</b><span>{comment.text}</span></div>)}
+        <label htmlFor="channel-comment">Написать комментарий</label><textarea id="channel-comment" className="sheet-input" maxLength={500} value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Только вымышленные данные" />
+        {hasPersonalData(commentText) && <p className="err">Не указывай личные данные.</p>}
+        <button className="btn" disabled={!commentText.trim() || hasPersonalData(commentText)} onClick={() => { const post = list.find(m => m.id === commentPost); update(commentPost, { comments: [...(post?.comments || []), { id: crypto.randomUUID(), author: user.nick, text: commentText.trim() }] }); setCommentText('') }}>Отправить</button>
+      </Sheet>}
 
       {/* Информация о чате */}
       {sheet === 'info' && (

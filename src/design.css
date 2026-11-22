@@ -539,6 +539,12 @@ body { background: #edf2f5; letter-spacing: -.01em; }
 .jury-file small { color: var(--text-2); }
 .jury-file img, .jury-file video { width: 100%; max-height: 240px; object-fit: contain; border-radius: 10px; }
 .jury-file a { color: var(--accent); font-weight: 600; }
+.channel-comments { display: flex; align-items: center; gap: 7px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); color: var(--accent); font-weight: 600; font-size: 13px; cursor: pointer; }
+.channel-comments svg { width: 16px; height: 16px; }
+.channel-comment { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.channel-comment b { color: var(--accent); font-size: 13px; }
+.jury-message { cursor: pointer; }
+.jury-emoji-picker { position: static; flex: none; max-height: 190px; overflow: auto; }
 .group { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 18px; }
 .row { min-height: 60px; }
 .row .ri { border-radius: 12px; }

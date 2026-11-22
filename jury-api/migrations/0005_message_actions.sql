@@ -1,0 +1,8 @@
+ALTER TABLE demo_messages ADD COLUMN reply_id INTEGER;
+ALTER TABLE demo_messages ADD COLUMN edited INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS demo_reactions (
+  message_id INTEGER NOT NULL REFERENCES demo_messages(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL REFERENCES demo_members(token_hash) ON DELETE CASCADE,
+  reaction TEXT NOT NULL,
+  PRIMARY KEY(message_id, token_hash)
+);

@@ -270,7 +270,7 @@ export default function App() {
       setJuryRegistration(false)
     } catch { toast('Не удалось сохранить профиль на устройстве.') }
   }} />
-  else if (juryOpen) screen = <JuryChat onBack={closeJury} />
+  else if (juryOpen) screen = <JuryChat onBack={closeJury} onSave={(message) => { patch((prev) => ({ messages: { ...prev.messages, saved: [...(prev.messages.saved || []), { id: 'saved-' + crypto.randomUUID(), from: prev.user.nick, own: true, text: message.text, time: now(), createdAt: new Date().toISOString(), forwardedFrom: message.author }] } })); toast('Сохранено в избранном на этом устройстве') }} />
   else if (s.stage === 'welcome') screen = <Welcome onNext={() => patch({ stage: 'rules' })} onInstall={() => setInstallOpen(true)} installed={pwa.installed} onJury={openJury} />
   else if (s.stage === 'rules') screen = <Rules onBack={() => patch({ stage: 'welcome' })} onNext={() => patch({ stage: 'register' })} />
   else if (s.stage === 'register') screen = (

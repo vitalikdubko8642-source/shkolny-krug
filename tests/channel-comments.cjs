@@ -1,0 +1,20 @@
+const { chromium } = require('playwright-core')
+const assert = require('node:assert/strict')
+;(async () => {
+  const b = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-gpu'] })
+  try {
+    const p = await b.newPage({ viewport: { width: 375, height: 812 } })
+    const errors = []; p.on('pageerror', e => errors.push(e.message))
+    await p.goto('http://127.0.0.1:5193/')
+    await p.getByRole('button', { name: 'Начать', exact: true }).click(); await p.getByRole('checkbox').check(); await p.getByRole('button', { name: 'Дальше' }).click()
+    await p.getByRole('button', { name: /Заполнить пустые поля/ }).click(); await p.getByRole('button', { name: 'Готово', exact: true }).click(); await p.getByRole('button', { name: 'Пропустить' }).click()
+    await p.locator('.tabbar button', { hasText: 'Чаты' }).click(); await p.getByRole('button', { name: /Новости школы/ }).click()
+    await p.getByRole('button', { name: 'Комментарии', exact: true }).first().click()
+    await p.getByLabel('Написать комментарий').fill('Классная новость!')
+    await p.getByRole('button', { name: 'Отправить', exact: true }).click()
+    await p.getByText('Классная новость!').waitFor()
+    await p.reload(); await p.locator('.channel-comments').filter({ hasText: 'Комментарии · 1' }).click(); await p.getByText('Классная новость!').waitFor()
+    assert.deepEqual(errors, [])
+    console.log('School channel comments persist locally on their post.')
+  } finally { await b.close() }
+})().catch(e => { console.error(e); process.exit(1) })

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import Avatar, { Nick } from '../components/Avatar.jsx'
 import ProfileCard from '../components/ProfileCard.jsx'
-import ProfileBanner, { PROFILE_BANNERS } from '../components/ProfileBanner.jsx'
+import ProfileBanner, { PROFILE_BANNERS, normalizeBanner } from '../components/ProfileBanner.jsx'
 import Sheet from '../components/Sheet.jsx'
 import { hasPersonalData } from '../logic/personal.js'
 import { INTERESTS } from './Register.jsx'
@@ -138,12 +138,13 @@ function MePage({ user, settings, onUser, onBack }) {
 
   return (
     <Page title="Мой профиль" onBack={onBack}>
-      <p className="group-title">Так тебя видят другие</p>
+      <p className="group-title">Предпросмотр профиля</p>
       <ProfileCard user={{ ...user, nick: nickOk ? nick : user.nick }} settings={settings} />
+      <p className="group-note">Настройки профиля пока сохраняются только в этом браузере.</p>
 
       <p className="group-title">Баннер профиля</p>
       <div className="profile-banner-grid">
-        {PROFILE_BANNERS.map((art) => <button key={art.id} type="button" className={'banner-choice' + ((user.banner || 'coast') === art.id ? ' on' : '')} aria-pressed={(user.banner || 'coast') === art.id} onClick={() => onUser({ banner: art.id })}><ProfileBanner id={art.id} /><span>{art.title}</span></button>)}
+        {PROFILE_BANNERS.map((art) => <button key={art.id} type="button" className={'banner-choice' + (normalizeBanner(user.banner) === art.id ? ' on' : '')} aria-pressed={normalizeBanner(user.banner) === art.id} onClick={() => onUser({ banner: art.id })}><ProfileBanner id={art.id} /><span>{art.title}</span></button>)}
       </div>
 
       <p className="group-title">Аватар</p>
