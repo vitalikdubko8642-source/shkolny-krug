@@ -19,6 +19,22 @@ export default function Register({ onBack, onDone }) {
   const [f, setF] = useState({ name: '', phone: '', nick: '', cls: '', interests: [], newcomer: false })
   const [tried, setTried] = useState(false)
   const [teacherCode, setTeacherCode] = useState('')
+  const [juryCode, setJuryCode] = useState('')
+  const [juryError, setJuryError] = useState('')
+  const [juryBusy, setJuryBusy] = useState(false)
+  const [juryProfile, setJuryProfile] = useState(null)
+  const enterJury = async (event) => {
+    event.preventDefault(); setJuryBusy(true); setJuryError('')
+    try {
+      const api = import.meta.env.VITE_JURY_API || 'https://shkolny-krug-jury-demo.okla-school-8642.workers.dev'
+      const response = await fetch(`${api}/jury-enter`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: juryCode }), cache: 'no-store' })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Не удалось войти. Попробуйте ещё раз.')
+      localStorage.setItem('shkolny-krug-jury-profile-v1', JSON.stringify(result))
+      setJuryProfile(result)
+    } catch (error) { setJuryError(error.message || 'Нет связи. Проверьте интернет и попробуйте снова.') }
+    finally { setJuryBusy(false) }
+  }
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
   const toggle = (i) => setF({ ...f, interests: f.interests.includes(i) ? f.interests.filter((x) => x !== i) : [...f.interests, i] })
   const young = role === 'student' && classNum(f.cls) >= 1 && classNum(f.cls) <= 4
@@ -52,8 +68,23 @@ export default function Register({ onBack, onDone }) {
           <div className="seg">
             <button className={role === 'student' ? 'on' : ''} onClick={() => setRole('student')}>Я ученик</button>
             <button className={role === 'teacher' ? 'on' : ''} onClick={() => setRole('teacher')}>Я учитель</button>
+            <button className={role === 'jury' ? 'on' : ''} onClick={() => setRole('jury')}>Жюри</button>
           </div>
 
+          {role === 'jury' ? (juryProfile ? <div className="jury-form">
+            <h2>Добро пожаловать в 9В!</h2>
+            <p>Чтобы вы сразу могли попробовать приложение, мы создали для вас вымышленный профиль.</p>
+            <p><b>Ваш ник: {juryProfile.nick}</b></p>
+            <p className="fine">В чате используйте только вымышленные данные.</p>
+            <button className="btn" onClick={() => onDone({ name: 'Вымышленный Ученик', phone: '', nick: juryProfile.nick, cls: '9В', interests: [], newcomer: false, role: 'student', jury: true, color: '#2F80ED' })}>Перейти в приложение</button>
+          </div> : <form className="jury-form" onSubmit={enterJury}>
+            <h2>Вход для жюри</h2><p>Введите личный код с карточки, чтобы присоединиться к демонстрации.</p>
+            <label htmlFor="jury-personal-code">Код жюри</label>
+            <input id="jury-personal-code" value={juryCode} onChange={(e) => setJuryCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4))} autoComplete="off" autoCapitalize="characters" spellCheck="false" placeholder="4 символа" maxLength={4} required />
+            <small>Английские буквы и цифры. Пожалуйста, никому не передавайте код.</small>
+            {juryError && <p className="jury-error" role="alert">{juryError}</p>}
+            <button className="btn" disabled={juryBusy || juryCode.length !== 4}>{juryBusy ? 'Проверяем…' : 'Продолжить'}</button>
+          </form>) : <>
           <div className="field">
             <label>ФИО полностью</label>
             <input value={f.name} onChange={set('name')} placeholder="Иванов Иван Иванович" autoComplete="off" />
@@ -100,6 +131,7 @@ export default function Register({ onBack, onDone }) {
           <button className="btn" onClick={submit}>Готово</button>
           <button className="btn ghost" onClick={() => setF((prev) => ({ ...prev, name: prev.name || DEMO.name, phone: prev.phone || DEMO.phone, nick: prev.nick || DEMO.nick, cls: prev.cls || DEMO.cls, interests: prev.interests.length ? prev.interests : DEMO.interests, newcomer: prev.newcomer || DEMO.newcomer }))}>Заполнить пустые поля выдуманными данными</button>
           <p className="demo-note">P.S. Это учебный прототип: вводи только выдуманные данные. Они хранятся в этом браузере и не сверяются со списком школы. В настоящей версии предполагается проверять настоящие данные по школьному списку.</p>
+          </>}
         </div>
       </div>
     </>

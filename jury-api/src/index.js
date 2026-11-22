@@ -36,6 +36,21 @@ export default {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return reply({ error: 'Неверный запрос.' }, 400)
     const action = new URL(request.url).pathname
     try {
+      if (action === '/jury-enter') {
+        const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
+        if (!(await env.ENTRY_LIMIT.limit({ key: ip })).success || !(await env.JURY_GLOBAL_LIMIT.limit({ key: 'jury-entry' })).success) return reply({ error: 'Слишком много попыток. Попробуйте через минуту.' }, 429)
+        const code = typeof data.code === 'string' ? data.code.trim().toUpperCase() : ''
+        if (!/^[A-Z0-9]{4}$/.test(code)) return reply({ error: 'Введите четыре английские буквы или цифры.' }, 400)
+        const token = randomSecret()
+        const tokenHash = await hash(token)
+        await env.DB.batch([
+          env.DB.prepare('UPDATE jury_codes SET token_hash = ? WHERE code_hash = ? AND token_hash IS NULL AND expires_at > ?').bind(tokenHash, await hash(code), Date.now()),
+          env.DB.prepare('INSERT INTO demo_members (token_hash, room_id, nick) SELECT token_hash, room_id, nick FROM jury_codes WHERE token_hash = ?').bind(tokenHash),
+        ])
+        const claimed = await env.DB.prepare('SELECT room_id, nick, expires_at FROM jury_codes WHERE token_hash = ?').bind(tokenHash).first()
+        if (!claimed) return reply({ error: 'Код не подходит или уже использован.' }, 403)
+        return reply({ token, nick: claimed.nick, expiresAt: claimed.expires_at, jury: true })
+      }
       if (action === '/create' || action === '/join') {
         const ip = request.headers.get('CF-Connecting-IP') || 'unknown'
         if (!(await env.ENTRY_LIMIT.limit({ key: ip })).success) return reply({ error: 'Слишком много попыток. Попробуй через минуту.' }, 429)

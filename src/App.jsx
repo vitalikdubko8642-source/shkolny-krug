@@ -147,7 +147,7 @@ export default function App() {
 
   // ----- Действия -----
   const a = {
-    openChat: (id) => patch((prev) => ({ openChat: id, unread: { ...prev.unread, [id]: 0 } })),
+    openChat: (id) => { if (s.user?.jury && id === 'class:9В') { openJury(); return }; patch((prev) => ({ openChat: id, unread: { ...prev.unread, [id]: 0 } })) },
     request: (nick) => patch((prev) => prev.blocked.includes(nick) ? {} : ({ outgoing: [...new Set([...prev.outgoing, nick])] })),
     accept: (nick) => {
       const r = s.incoming.find((x) => x.nick === nick)

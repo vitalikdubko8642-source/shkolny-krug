@@ -5,7 +5,8 @@
   "d1_databases": [{ "binding": "DB", "database_name": "shkolny-krug-jury-demo", "database_id": "541bed68-9314-4ad3-a597-91413623564b" }],
   "ratelimits": [
     { "name": "ENTRY_LIMIT", "namespace_id": "10352001", "simple": { "limit": 10, "period": 60 } },
-    { "name": "SESSION_LIMIT", "namespace_id": "10352002", "simple": { "limit": 60, "period": 60 } }
+    { "name": "SESSION_LIMIT", "namespace_id": "10352002", "simple": { "limit": 60, "period": 60 } },
+    { "name": "JURY_GLOBAL_LIMIT", "namespace_id": "10352003", "simple": { "limit": 30, "period": 60 } }
   ],
   "triggers": { "crons": ["0 * * * *"] }
 }

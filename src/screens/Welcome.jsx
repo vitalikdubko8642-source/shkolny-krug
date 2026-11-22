@@ -2,7 +2,7 @@ import Icon from '../components/Icon.jsx'
 
 // Первый экран после QR-кода. По ТЗ он НЕ открывает чат сразу,
 // а рассказывает, что это за сервис и для кого (защита от подменённого QR и прохожих).
-export default function Welcome({ onNext, onInstall, installed, onJury }) {
+export default function Welcome({ onNext, onInstall, installed }) {
   return (
     <div className="scroll">
       <div className="welcome">
@@ -29,7 +29,6 @@ export default function Welcome({ onNext, onInstall, installed, onJury }) {
 
         <div className="spacer" />
         <button className="btn" onClick={onNext}>Начать</button>
-        <button className="jury-entry-link" onClick={onJury}>Тестовая комната для жюри</button>
         {!installed && <button className="install-link" onClick={onInstall}>Установить на телефон</button>}
         <p className="address">Проверь адрес в браузере: <b>shkolny-krug</b>. Такой же написан на табличке у QR-кода.</p>
       </div>

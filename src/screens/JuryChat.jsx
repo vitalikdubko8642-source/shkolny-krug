@@ -6,7 +6,7 @@ import { MAF_PLACE, MEET_PLACES } from '../data/demo.js'
 
 const API = import.meta.env.VITE_JURY_API || 'https://shkolny-krug-jury-demo.okla-school-8642.workers.dev'
 const KEY = 'shkolny-krug-jury-session-v1'
-const getSession = () => { try { return JSON.parse(sessionStorage.getItem(KEY)) } catch { return null } }
+const getSession = () => { try { return JSON.parse(localStorage.getItem('shkolny-krug-jury-profile-v1') || sessionStorage.getItem(KEY)) } catch { return null } }
 const saveSession = (session) => { try { sessionStorage.setItem(KEY, JSON.stringify(session)) } catch { /* usable until tab closes */ } }
 const clearSession = () => { try { sessionStorage.removeItem(KEY) } catch { /* ignore */ } }
 
@@ -125,7 +125,7 @@ export default function JuryChat({ onBack }) {
 
   return (
     <>
-      <div className="topbar"><button className="icon-btn" aria-label="Назад" onClick={onBack}><Icon name="back" /></button><div className="jury-title"><h1>Тестовый чат</h1><span>Ник: {session.nick} · комната на 24 часа</span></div><button className="jury-code-btn" onClick={() => setShowCode(!showCode)} aria-expanded={showCode}>Код</button></div>
+      <div className="topbar"><button className="icon-btn" aria-label="Назад" onClick={onBack}><Icon name="back" /></button><div className="jury-title"><h1>{session.jury ? '9В — наш класс' : 'Тестовый чат'}</h1><span>{session.jury ? 'Демонстрационный чат жюри' : `Ник: ${session.nick} · комната на 24 часа`}</span></div>{!session.jury && <button className="jury-code-btn" onClick={() => setShowCode(!showCode)} aria-expanded={showCode}>Код</button>}</div>
       {showCode && <div className="jury-invite"><b>Код приглашения</b><span>Передай его только участникам проверки.</span><code>{session.code}</code><button onClick={copy}>Скопировать код</button>{copyStatus && <small role="status">{copyStatus}</small>}</div>}
       {connection && <div className="jury-connection" role="status">{connection}</div>}
       <div className="messages jury-messages">
@@ -140,7 +140,7 @@ export default function JuryChat({ onBack }) {
       </div>
       {error && <p className="jury-error jury-send-error" role="alert">{error}</p>}
       <form className="composer jury-composer" onSubmit={send}><button className="icon-btn plus" type="button" aria-label="Назначить встречу" onClick={() => { setMeetingError(''); setMeetingOpen(true) }}><Icon name="plus" /></button><textarea aria-label="Сообщение" value={text} onChange={(e) => setText(e.target.value)} maxLength={500} placeholder="Сообщение" rows={1} /><button className="send" type="submit" aria-label="Отправить" disabled={busy || !text.trim()}><Icon name="send" /></button></form>
-      <button className="jury-leave" onClick={leave}>Выйти из комнаты</button>
+      {!session.jury && <button className="jury-leave" onClick={leave}>Выйти из комнаты</button>}
       {meetingOpen && <JuryMeetingForm onClose={() => setMeetingOpen(false)} onCreate={createMeeting} busy={meetingBusy} error={meetingError} currentTime={currentTime} />}
     </>
   )
