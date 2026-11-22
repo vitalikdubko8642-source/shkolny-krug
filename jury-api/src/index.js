@@ -2,6 +2,8 @@ const PRODUCTION_ORIGIN = 'https://vitalikdubko8642-source.github.io'
 const ROOM_TTL = 24 * 60 * 60 * 1000
 const secretPattern = /^[A-Za-z0-9_-]{32}$/
 const nickPattern = /^[a-zA-Z0-9_]{3,16}$/
+const places = ['У навеса во дворе', 'У главного входа', 'У велопарковки', 'В библиотеке', 'В столовой']
+const meetingPrefix = '::MEET::'
 const sensitive = /(?:\+?\d[\d\s()-]{5,}\d)|[\w.+-]+@[\w.-]+\.[a-zа-яё]{2,}|https?:\/\/|(?:ул\.|улица|проспект|переулок|дом\s+\d)\s*\S+/iu
 
 function randomSecret() {
@@ -56,7 +58,7 @@ export default {
         catch (e) { if (String(e).includes('UNIQUE')) return reply({ error: 'Этот ник в комнате уже занят.' }, 409); throw e }
         return reply({ code, token, nick: data.nick, expiresAt: found.expires_at })
       }
-      if (action !== '/poll' && action !== '/send') return reply({ error: 'Маршрут не найден.' }, 404)
+      if (!['/poll', '/send', '/meeting', '/meeting-rsvp'].includes(action)) return reply({ error: 'Маршрут не найден.' }, 404)
       if (typeof data.token !== 'string' || !secretPattern.test(data.token)) return reply({ error: 'Сессия недействительна.' }, 401)
       const tokenHash = await hash(data.token)
       if (!(await env.SESSION_LIMIT.limit({ key: tokenHash })).success) return reply({ error: 'Слишком много запросов. Подожди немного.' }, 429)
@@ -65,13 +67,40 @@ export default {
       if (action === '/send') {
         const text = typeof data.text === 'string' ? data.text.trim() : ''
         if (!text || text.length > 500) return reply({ error: 'Сообщение должно содержать от 1 до 500 символов.' }, 400)
+        if (text.startsWith(meetingPrefix)) return reply({ error: 'Неверный формат сообщения.' }, 400)
         if (sensitive.test(text)) return reply({ error: 'В тесте нельзя отправлять номера, адреса, почту и ссылки. Используй вымышленные данные.' }, 400)
         const entry = await env.DB.prepare('INSERT INTO demo_messages (room_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(member.room_id, member.nick, text, Date.now()).run()
         return reply({ id: entry.meta.last_row_id })
       }
+      if (action === '/meeting') {
+        const now = Date.now()
+        const note = typeof data.note === 'string' ? data.note.trim() : ''
+        if (!places.includes(data.place) || !Number.isSafeInteger(data.startsAt) || data.startsAt <= now || data.startsAt >= member.expires_at || note.length > 80) return reply({ error: 'Проверь место и время: встреча должна пройти до закрытия комнаты.' }, 400)
+        if (sensitive.test(note)) return reply({ error: 'Не указывай в приглашении личные данные или ссылки.' }, 400)
+        const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM demo_meetings WHERE room_id = ?').bind(member.room_id).first()
+        if (count.n >= 50) return reply({ error: 'В комнате уже достаточно встреч.' }, 409)
+        const id = crypto.randomUUID()
+        await env.DB.batch([
+          env.DB.prepare('INSERT INTO demo_meetings (id, room_id, owner_token_hash, place, note, starts_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, member.room_id, tokenHash, data.place, note, data.startsAt, now),
+          env.DB.prepare('INSERT INTO demo_meeting_attendees (meeting_id, token_hash) VALUES (?, ?)').bind(id, tokenHash),
+          env.DB.prepare('INSERT INTO demo_messages (room_id, author, text, created_at) VALUES (?, ?, ?, ?)').bind(member.room_id, member.nick, meetingPrefix + id, now),
+        ])
+        return reply({ id })
+      }
+      if (action === '/meeting-rsvp') {
+        if (typeof data.meetingId !== 'string' || !/^[0-9a-f-]{36}$/i.test(data.meetingId) || typeof data.going !== 'boolean') return reply({ error: 'Неверные данные встречи.' }, 400)
+        const meeting = await env.DB.prepare('SELECT owner_token_hash, starts_at FROM demo_meetings WHERE id = ? AND room_id = ?').bind(data.meetingId, member.room_id).first()
+        if (!meeting) return reply({ error: 'Встреча не найдена.' }, 404)
+        if (meeting.starts_at <= Date.now()) return reply({ error: 'Эта встреча уже прошла.' }, 400)
+        if (!data.going && meeting.owner_token_hash === tokenHash) return reply({ error: 'Автор участвует в своей встрече.' }, 400)
+        const query = data.going ? 'INSERT OR IGNORE INTO demo_meeting_attendees (meeting_id, token_hash) VALUES (?, ?)' : 'DELETE FROM demo_meeting_attendees WHERE meeting_id = ? AND token_hash = ?'
+        await env.DB.prepare(query).bind(data.meetingId, tokenHash).run()
+        return reply({ ok: true })
+      }
       const since = Number.isSafeInteger(data.since) && data.since >= 0 ? data.since : 0
       const result = await env.DB.prepare('SELECT id, author, text, created_at AS createdAt FROM demo_messages WHERE room_id = ? AND id > ? ORDER BY id ASC LIMIT 100').bind(member.room_id, since).all()
-      return reply({ messages: result.results, expiresAt: member.expires_at })
+      const meetings = await env.DB.prepare('SELECT m.id, m.place, m.note, m.starts_at AS startsAt, m.owner_token_hash = ? AS isOwner, (SELECT COUNT(*) FROM demo_meeting_attendees a WHERE a.meeting_id = m.id) AS going, EXISTS(SELECT 1 FROM demo_meeting_attendees a WHERE a.meeting_id = m.id AND a.token_hash = ?) AS mine FROM demo_meetings m WHERE m.room_id = ?').bind(tokenHash, tokenHash, member.room_id).all()
+      return reply({ messages: result.results, meetings: meetings.results, expiresAt: member.expires_at })
     } catch {
       return reply({ error: 'Тестовый чат временно недоступен. Попробуй позже.' }, 503)
     }
